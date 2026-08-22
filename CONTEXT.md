@@ -21,8 +21,19 @@ What an Annotation is attached to: a line, a line range, a whole file, or the Re
 _Avoid_: Location, position, scope
 
 **Anchor**:
-The data stored with a Target that re-locates it after the Source changes.
+The data stored with a Target that re-locates it against file content after the
+Source changes. An Anchor is `fresh` when it still matches, `moved` when it was
+re-found elsewhere, and `orphaned` when it was not found at all.
 _Avoid_: Position, offset
+
+**Origin**:
+Which side of a diff a line belongs to: `added`, `removed`, or `context`.
+Removed lines are numbered in the old file, the rest in the new.
+_Avoid_: Side, change type
+
+**Revision**:
+The immutable commit a diff Source was generated from.
+_Avoid_: Ref, version, base (bare)
 
 **Source**:
 The thing under review: a diff or a plain file.

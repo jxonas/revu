@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-22T19:26:45.117760404Z'
+updated: '2026-08-22T22:33:56.838939996Z'
 tags:
 - wayfinder:map
 ---
@@ -24,10 +24,6 @@ A spec ready to build from: `CONTEXT.md` glossary, ADRs for the load-bearing cho
 - Skills every session should consult: `grilling`, `domain-modeling` (keep `CONTEXT.md` vocabulary: Review, Annotation, Kind, Target, Anchor, Source, Export).
 - Standing preferences: leverage built-ins first (`diff-mode`, overlays, `string-edit`, `json-serialize`); a dependency on `magit-section` is acceptable if the prototype justifies it; never depend on full magit internals. Wayfinder is planning-only here: produce decisions, not code (prototypes are throwaway).
 
-**2026-08-22T19:26:45.117760404Z**
-
-Decision: [revdiff export format: exact grammar, escaping and plugin expectations](dcr-01m0nekbb7zp) — grammar pinned to the Go parser (not the plugin docs); file-line numbering with old side for `-`; review-level notes have no revdiff equivalent, so the Export ticket must decide drop-vs-fold. Note at `docs/research/revdiff-export-format.md` on `research/revdiff-export-format`.
-
 ## Decisions so far
 
 Charting-session decisions (no ticket, decided in the charting grill):
@@ -40,7 +36,8 @@ Charting-session decisions (no ticket, decided in the charting grill):
 - Agent handshake is user-driven: the reviewer tells the agent which sidecar to read. No `emacsclient` blocking loop.
 - Emacs 30.2+; GPL-3-or-later.
 
-Ticket decisions are appended as notes below.
+- [revdiff export format: exact grammar, escaping and plugin expectations](dcr-01m0nekbb7zp) — grammar pinned to the Go parser, not the plugin docs; file-line numbering with the old side for `-`; review-level notes have no revdiff equivalent, so Export must decide drop-vs-fold. Note at `docs/research/revdiff-export-format.md` on branch `research/revdiff-export-format`.
+- [Canonical annotation record & anchor model](dcr-01m0nekb5z5c) — ADR-0003: ULID identity so two Annotations may share a Target; tagged `target` (review/file/line/range, hunk is a range); diff lines carry `origin` so revdiff's export key derives; Anchors store line text + 3 lines of context + a file digest and re-locate against **file content, never the diff**; state (`fresh`/`moved`/`orphaned`) is derived on load, never persisted; Reviews record their `base`/`head` Revisions so removed lines re-locate in `git show base:path`.
 
 ## Not yet specified
 
@@ -49,7 +46,6 @@ Ticket decisions are appended as notes below.
 - In-Emacs agent adapters: a gptel tool, agent-shell send, claude-code.el send.
 - MELPA packaging, CI, byte-compile/lint setup.
 - "Reviewed" file-tracking and annotated-only filters (revdiff `Space`, `f`, `F`).
-- Renamed files and moved hunks when re-anchoring across Source changes.
 - Markdown TOC pane for document review.
 
 ## Out of scope
