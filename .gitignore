@@ -1,0 +1,18 @@
+# Emacs / Eldev build artifacts
+*.elc
+*.eln
+.eldev/
+Eldev-local
+/eln-cache/
+*-autoloads.el
+*-pkg.el
+*~
+\#*\#
+.\#*
+
+# Agent worktrees and per-machine settings
+.claude/worktrees/
+.claude/settings.local.json
+
+# revu review state (the sidecar the package writes; users of revu are told to ignore it too)
+.revu/
