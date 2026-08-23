@@ -1,14 +1,17 @@
 ---
 id: dcr-01m0nekb375q
 title: 'revu: Emacs diff & file review with exportable annotations'
-status: open
+status: closed
 type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-23T19:13:50.024821342Z'
+updated: '2026-08-23T20:52:52.326857011Z'
+closed: '2026-08-23T20:52:52.326857011Z'
 tags:
 - wayfinder:map
+links:
+- dcr-01m0r63dzcq8
 ---
 
 ## Description
@@ -57,6 +60,14 @@ Decisions so far += [Keymap and evil strategy](dcr-01m0qyda4jnd) — ADR-0010: o
 **2026-08-23T19:13:50.024821342Z**
 
 Decisions so far += [Plain-file review UX](dcr-01m0nekbdy5m) — ADR-0011: one flat file section in the dedicated revu buffer (all lines, Annotations as child sections at Anchor lines); one file per Review; entry refuses non-file buffers and files outside a project root, prompts to save; disk is the single truth, g reloads Sidecar+Source in one pass; region at entry only positions point; line numbers render as a dim text prefix for plain files and diffs alike; markdown TOC stays fog. No fog graduated; no new tickets. Frontier: [v0 spec and implementation ticket breakdown](dcr-01m0nekbkdqq) is now unblocked — the last ticket on the map.
+
+**2026-08-23T20:52:40.987740731Z**
+
+Decisions so far += [v0 spec and implementation ticket breakdown](dcr-01m0nekbkdqq) — the spec is published in knot as the build epic [revu v0 build](dcr-01m0r63dzcq8): 38 user stories, the ADR index, two testing seams (command layer over a fixture repo; anchoring engine as a pure function), tests per ticket. Ten afk implementation tickets hang off it with native deps and core-first priorities; only 'Package skeleton and test harness' is on the build frontier. No fog graduated (remaining Not-yet-specified items stay post-v0). The frontier of this map is empty: the way is clear, the build epic is the handoff, and this map closes.
+
+**2026-08-23T20:52:52.326857011Z**
+
+Map complete: every decision ticket resolved (ADR-0001..0011 + CONTEXT.md glossary) and the destination reached — a spec ready to build from. The spec and the v0 implementation ticket list live in the linked build epic 'revu v0 build' (dcr-01m0r63dzcq8): ten afk tickets, dep-wired, core-first priorities, starting at 'Package skeleton and test harness'. Post-v0 fog (extra export formats, concurrent reviews/history, in-Emacs agent adapters, MELPA/CI, markdown TOC) is recorded in this map's Not-yet-specified section for a future effort.
 
 ## Decisions so far
 
