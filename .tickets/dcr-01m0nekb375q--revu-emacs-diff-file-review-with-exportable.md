@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-23T19:00:39.725542097Z'
+updated: '2026-08-23T19:13:50.024821342Z'
 tags:
 - wayfinder:map
 ---
@@ -53,6 +53,10 @@ Decisions so far += [Reviewed-tracking: mark file/hunk reviewed and hide reviewe
 **2026-08-23T19:00:39.725542097Z**
 
 Decisions so far += [Keymap and evil strategy](dcr-01m0qyda4jnd) — ADR-0010: one canonical revu-mode-map atop magit-section natives (a/e/k annotate, r reviewed-toggle, E export, g reload, RET visit-Target, ? dispatch) plus first-party guarded evil-define-key* bindings in normal state (pr-review pattern; x delete, gr reload, gj/gk/C-j/C-k sections, za folds — evil-collection conventions bound by us, no evil dep); transient dispatch is the full palette and sole home of force-write and the render filters; all interaction in the dedicated read-only buffer (constraint noted on Plain-file review UX). No fog graduated; no new tickets. Frontier: Plain-file review UX is the last decision before the v0 spec breakdown.
+
+**2026-08-23T19:13:50.024821342Z**
+
+Decisions so far += [Plain-file review UX](dcr-01m0nekbdy5m) — ADR-0011: one flat file section in the dedicated revu buffer (all lines, Annotations as child sections at Anchor lines); one file per Review; entry refuses non-file buffers and files outside a project root, prompts to save; disk is the single truth, g reloads Sidecar+Source in one pass; region at entry only positions point; line numbers render as a dim text prefix for plain files and diffs alike; markdown TOC stays fog. No fog graduated; no new tickets. Frontier: [v0 spec and implementation ticket breakdown](dcr-01m0nekbkdqq) is now unblocked — the last ticket on the map.
 
 ## Decisions so far
 
