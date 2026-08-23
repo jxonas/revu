@@ -31,6 +31,11 @@ Which side of a diff a line belongs to: `added`, `removed`, or `context`.
 Removed lines are numbered in the old file, the rest in the new.
 _Avoid_: Side, change type
 
+**Path resolution**:
+Where a Target's `path` stands at load time: `present`, `renamed` (with the new
+path), or `deleted`. Derived per path on load, like Anchor state; never
+persisted. _Avoid_: File status, rename state
+
 **Revision**:
 The immutable commit a diff Source was generated from.
 _Avoid_: Ref, version, base (bare)

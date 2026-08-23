@@ -6,7 +6,7 @@ type: task
 priority: 2
 mode: hitl
 created: '2026-08-22T19:19:12.662397425Z'
-updated: '2026-08-22T22:33:12.237916879Z'
+updated: '2026-08-23T01:35:00.757618623Z'
 parent: dcr-01m0nekb375q
 tags:
 - wayfinder:grilling
@@ -28,3 +28,7 @@ Define the user-facing surface around the sidecar: default Review naming from th
 From [Canonical annotation record & anchor model](dcr-01m0nekb5z5c) / ADR-0003, two things land on this ticket:
 - Two Annotations may share a Target (identity is the ULID, not the Target). Both flatten to the same revdiff `## path:N (T)` header — decide how the exporter resolves that collision (concatenate bodies, emit both and accept revdiff last-write-wins on import, or refuse).
 - ADR-0003 fixes only the Review fields anchoring needs (Source kind, `base`, `head` Revisions). Sidecar naming, schema version and record ordering are still this ticket's to settle.
+
+**2026-08-23T01:35:00.757618623Z**
+
+Handoff from Re-anchoring across renames and deleted paths (ADR-0004): Target paths are immutable (path at annotation time), so a sidecar may show stale or duplicate paths after a rename. Path resolution facts (present/renamed/deleted) are derived and available at export time — rendering resolved current paths, and grouping one file that appears under two paths, is the exporter's job.

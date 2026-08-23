@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-22T22:33:56.838939996Z'
+updated: '2026-08-23T01:43:54.414140710Z'
 tags:
 - wayfinder:map
 ---
@@ -23,6 +23,14 @@ A spec ready to build from: `CONTEXT.md` glossary, ADRs for the load-bearing cho
 - Reference product: https://github.com/umputun/revdiff — research notes in `docs/research/` once the research ticket lands.
 - Skills every session should consult: `grilling`, `domain-modeling` (keep `CONTEXT.md` vocabulary: Review, Annotation, Kind, Target, Anchor, Source, Export).
 - Standing preferences: leverage built-ins first (`diff-mode`, overlays, `string-edit`, `json-serialize`); a dependency on `magit-section` is acceptable if the prototype justifies it; never depend on full magit internals. Wayfinder is planning-only here: produce decisions, not code (prototypes are throwaway).
+
+**2026-08-23T01:35:11.535289709Z**
+
+Decisions so far += [Re-anchoring across renames and deleted paths](dcr-01m0nspa8aee) — ADR-0004: git Sources follow renames (one 'git diff -M --name-status base..worktree' call at load); plain files just orphan; new derived per-path 'path resolution' (present/renamed/deleted), never persisted; anchor states stay line-scoped; Target path immutable, so Export resolves stale/duplicate paths (handoff noted on Export & sidecar commands).
+
+**2026-08-23T01:43:37.618392626Z**
+
+Fog graduated: 'Reviewed file-tracking and annotated-only filters (revdiff Space, f, F)' left Not-yet-specified and is now the ticket [Reviewed-tracking: mark file/hunk reviewed and hide reviewed sections](dcr-01m0p4k0awfp), blocked on the review-buffer prototype; v0 spec breakdown now also depends on it.
 
 ## Decisions so far
 
@@ -45,7 +53,6 @@ Charting-session decisions (no ticket, decided in the charting grill):
 - Multiple concurrent reviews and review history (revdiff's `~/.config/revdiff/history`).
 - In-Emacs agent adapters: a gptel tool, agent-shell send, claude-code.el send.
 - MELPA packaging, CI, byte-compile/lint setup.
-- "Reviewed" file-tracking and annotated-only filters (revdiff `Space`, `f`, `F`).
 - Markdown TOC pane for document review.
 
 ## Out of scope
