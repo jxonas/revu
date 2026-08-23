@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-23T01:43:54.414140710Z'
+updated: '2026-08-23T02:46:07.820807790Z'
 tags:
 - wayfinder:map
 ---
@@ -32,6 +32,12 @@ Decisions so far += [Re-anchoring across renames and deleted paths](dcr-01m0nspa
 
 Fog graduated: 'Reviewed file-tracking and annotated-only filters (revdiff Space, f, F)' left Not-yet-specified and is now the ticket [Reviewed-tracking: mark file/hunk reviewed and hide reviewed sections](dcr-01m0p4k0awfp), blocked on the review-buffer prototype; v0 spec breakdown now also depends on it.
 
+**2026-08-23T02:43:43.260169705Z**
+
+Decisions so far += [Export & sidecar commands](dcr-01m0nekbgpk7) — ADR-0005: schema v1 sidecar, deterministic resume-by-default naming, atomic write per mutation, .gitignore guidance docs-only; ADR-0006: revdiff Export writes .revu/<review>.md, kill-ring path is the agent handoff, collisions concatenate, review-level notes dropped loudly, export renders resolved current paths and moved lines. Posture: revdiff compat is table stakes; future native export formats are additive exporters.
+
+Fog graduated: 'Round-trip import' left Not-yet-specified and is now the ticket [Round-trip import: agent edits to the sidecar shown in Emacs](dcr-01m0p812gcw2); v0 spec breakdown now also depends on it. Fog added: 'Additional native Export formats beyond revdiff markdown'.
+
 ## Decisions so far
 
 Charting-session decisions (no ticket, decided in the charting grill):
@@ -49,7 +55,7 @@ Charting-session decisions (no ticket, decided in the charting grill):
 
 ## Not yet specified
 
-- Round-trip import: an agent edits or answers annotations in the sidecar and Emacs shows the result.
+- Additional native Export formats beyond revdiff markdown (e.g. a markdown flavor keeping Kind, ranges, review-level notes) — additive exporters over the same record.
 - Multiple concurrent reviews and review history (revdiff's `~/.config/revdiff/history`).
 - In-Emacs agent adapters: a gptel tool, agent-shell send, claude-code.el send.
 - MELPA packaging, CI, byte-compile/lint setup.
