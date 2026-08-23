@@ -6,7 +6,7 @@ type: task
 priority: 2
 mode: hitl
 created: '2026-08-22T19:19:12.749301225Z'
-updated: '2026-08-23T02:43:43.170048153Z'
+updated: '2026-08-23T18:34:10.126493464Z'
 parent: dcr-01m0nekb375q
 tags:
 - wayfinder:grilling
@@ -19,6 +19,7 @@ deps:
 - dcr-01m0nspa8aee
 - dcr-01m0p4k0awfp
 - dcr-01m0p812gcw2
+- dcr-01m0qyda4jnd
 ---
 
 ## Description

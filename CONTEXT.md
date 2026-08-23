@@ -41,6 +41,12 @@ An agent's answer attached to an Annotation. Its presence marks the
 Annotation as answered.
 _Avoid_: Response, resolution, comment
 
+**Reviewed mark**:
+The persisted assertion that the reviewer has read a region, recorded as a
+content digest taken when marking. A region is reviewed exactly when its
+current content matches a mark; an edit un-matches it.
+_Avoid_: Seen, viewed, checked-off
+
 **Revision**:
 The immutable commit a diff Source was generated from.
 _Avoid_: Ref, version, base (bare)

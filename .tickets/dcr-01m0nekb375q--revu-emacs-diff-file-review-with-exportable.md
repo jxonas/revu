@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-23T18:10:34.208127785Z'
+updated: '2026-08-23T18:34:10.222911718Z'
 tags:
 - wayfinder:map
 ---
@@ -45,6 +45,10 @@ Decisions so far += [Round-trip import: agent edits to the sidecar shown in Emac
 **2026-08-23T18:10:34.208127785Z**
 
 Decisions so far += [Prototype: diff-mode+overlays vs magit-section for the review buffer](dcr-01m0nekb8ks4) — ADR-0008: the review buffer is built on magit-section (NonGNU ELPA, never full magit): native section collapsing covers reviewed-tracking, annotations are addressable sections, folding is uniform, and render-from-state extends to plain-file review; we own a small diff parser/renderer in exchange. Prototypes linked on branch prototype/review-buffer-base, not merged. No fog graduated; no new tickets. Now unblocked: Plain-file review UX, Reviewed-tracking.
+
+**2026-08-23T18:34:10.222911718Z**
+
+Decisions so far += [Reviewed-tracking: mark file/hunk reviewed and hide reviewed sections](dcr-01m0p4k0awfp) — ADR-0009: digest-identified reviewed marks persisted in the sidecar as an additive 'reviewed' array (hunk marks only for diffs, file state derived; plain files one file-content mark); an edit un-reviews by digest mismatch, unmatched marks are kept (revert resurrects); reviewer-private (Export and agent contract ignore it); UI is DWIM toggle + collapse + auto-advance with annotated-only/hide-reviewed render-predicate toggles. New ticket: [Keymap and evil strategy](dcr-01m0qyda4jnd) — package-wide default keys and the evil story, spun out of the grill; v0 spec breakdown now also depends on it. No fog graduated.
 
 ## Decisions so far
 
