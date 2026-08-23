@@ -15,6 +15,8 @@
 ;;; Code:
 
 (require 'ert)
+(require 'magit-section)
+(require 'revu)
 (require 'revu-record)
 
 (defconst revu-fixture-alpha-baseline
@@ -121,6 +123,47 @@ The repository is deleted when BODY finishes, however it finishes."
      (unwind-protect
          (progn ,@body)
        (delete-directory ,root t))))
+
+(defun revu-fixture-kill-review-buffers ()
+  "Kill every review buffer, so one test cannot resume another's Review."
+  (dolist (buffer (buffer-list))
+    (when (string-prefix-p "*revu: " (buffer-name buffer))
+      (kill-buffer buffer))))
+
+(defmacro revu-fixture-in-repo (root &rest body)
+  "Build the fixture repository, bind ROOT and run BODY inside it.
+The repository and every review buffer BODY opened are gone when it
+finishes, so tests cannot leak Reviews into one another."
+  (declare (indent 1) (debug (symbolp body)))
+  `(revu-fixture-with-repo ,root
+     (let ((default-directory ,root))
+       (unwind-protect
+           (progn ,@body)
+         (revu-fixture-kill-review-buffers)))))
+
+(defun revu-fixture-goto-line-matching (regexp)
+  "Put point at the beginning of the first rendered line matching REGEXP."
+  (goto-char (point-min))
+  (should (re-search-forward regexp nil t))
+  (goto-char (line-beginning-position)))
+
+(defun revu-fixture-press-tab ()
+  "Run whatever TAB runs in a review buffer, on the section at point."
+  (let ((command (keymap-lookup revu-mode-map "TAB")))
+    (should command)
+    (call-interactively command)))
+
+(defun revu-fixture-sections (&optional class)
+  "Return the sections of the current buffer, depth first.
+With CLASS, return only the sections of that class."
+  (let ((found nil))
+    (letrec ((walk (lambda (section)
+                     (when (or (null class) (object-of-class-p section class))
+                       (push section found))
+                     (dolist (child (oref section children))
+                       (funcall walk child)))))
+      (funcall walk magit-root-section))
+    (nreverse found)))
 
 (provide 'revu-fixture)
 ;;; revu-fixture.el ends here

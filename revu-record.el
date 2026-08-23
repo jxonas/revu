@@ -388,6 +388,56 @@ is what a decoded JSON array is."
                (revu-review-annotations review))
    time))
 
+;;;; Reviewed marks
+
+(defun revu-mark-create (path digest &optional time)
+  "Return a Reviewed mark on PATH asserting that DIGEST was read, at TIME.
+TIME defaults to now.  The digest is the mark's identity: the region is
+reviewed exactly while its content still hashes to it (ADR-0009)."
+  `((path . ,path) (digest . ,digest) (created . ,(revu-timestamp time))))
+
+(defun revu-mark-path (mark)
+  "Return the path MARK was taken on.
+The path says which file the reviewer read; it is not the identity, so a
+mark still matches content that moved to another path."
+  (alist-get 'path mark))
+
+(defun revu-mark-digest (mark)
+  "Return the digest of the content MARK asserts was read."
+  (alist-get 'digest mark))
+
+(defun revu-mark-created (mark)
+  "Return the timestamp MARK was taken at."
+  (alist-get 'created mark))
+
+(defun revu-review-marks (review)
+  "Return every Reviewed mark of REVIEW, in the order it was taken.
+A Review that has never been marked has none, which reads as the empty
+vector rather than as a missing field."
+  (or (alist-get 'reviewed review) []))
+
+(defun revu-review-add-mark (review mark &optional time)
+  "Return REVIEW carrying MARK as well, at TIME.
+Marks are appended in the order they were taken: a mark has no ULID, and
+what it asserts does not depend on where in the array it sits."
+  (revu--put-all
+   review
+   `((reviewed . ,(vconcat (revu-review-marks review) (vector mark)))
+     (updated . ,(revu-timestamp time)))))
+
+(defun revu-review-remove-marks (review digest &optional time)
+  "Return REVIEW without any Reviewed mark asserting DIGEST, at TIME.
+Only the marks that match the content the reviewer is looking at are
+dropped.  A mark matching nothing on disk is left where it is: it is an
+assertion the reviewer made, and reverting the edit that unmatched it
+brings the region back as reviewed (ADR-0009)."
+  (revu--put-all
+   review
+   `((reviewed . ,(vconcat (seq-remove (lambda (mark)
+                                         (equal (revu-mark-digest mark) digest))
+                                       (revu-review-marks review))))
+     (updated . ,(revu-timestamp time)))))
+
 ;;;; JSON
 
 (defun revu--object-p (value)
@@ -458,6 +508,16 @@ Review."
                    "annotations[%d] (%s) has an unknown Origin: %s"
                    index id origin))))
 
+(defun revu--validate-mark (mark index)
+  "Signal unless MARK, the Reviewed mark at INDEX, is a valid record.
+`reviewed' is an additive field and needs no schema bump (ADR-0009), but
+a mark revu cannot read the digest of is a mark that would break a render
+rather than tell the reviewer anything, so it refuses the Sidecar like
+any other malformed record."
+  (revu--check (revu--object-p mark) "reviewed[%d] is not an object" index)
+  (revu--check (stringp (revu-mark-digest mark))
+               "reviewed[%d] has no digest to match content against" index))
+
 (defun revu-review-validate (review)
   "Signal unless REVIEW is a valid schema v1 Review; return REVIEW.
 A Sidecar is refused whole: one broken record refuses the file rather
@@ -482,6 +542,13 @@ failure this format exists to prevent."
     (seq-doseq (annotation (revu-review-annotations review))
       (revu--validate-annotation annotation index)
       (setq index (1+ index))))
+  (when (assq 'reviewed review)
+    (revu--check (vectorp (alist-get 'reviewed review))
+                 "the Sidecar's reviewed marks are not an array")
+    (let ((index 0))
+      (seq-doseq (mark (revu-review-marks review))
+        (revu--validate-mark mark index)
+        (setq index (1+ index)))))
   review)
 
 (defun revu-review-decode (text)

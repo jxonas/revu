@@ -28,7 +28,8 @@
 ;; digest of its bytes -- and refuses to write over a file that changed
 ;; underneath it until the reviewer reloads.  `revu-sidecar-force-write'
 ;; is the one deliberate way past that, for when the reviewer judges
-;; what the agent wrote to be garbage.
+;; what the agent wrote to be garbage; the reviewer reaches both through
+;; the `revu-reload' and `revu-force-write' commands the block names.
 
 ;;; Code:
 
@@ -123,9 +124,9 @@ the block, and leave the file alone: an agent's edits are never
 overwritten by accident.  Return SIDECAR."
   (when (revu-sidecar-changed-p sidecar)
     (signal 'revu-sidecar-changed
-            (list (format "%s changed on disk; reload it (%s) before writing, \
-or force-write to overwrite it"
-                          (revu-sidecar-file sidecar) "revu-sidecar-reload"))))
+            (list (format "%s changed on disk; read it again with `revu-reload' \
+before writing, or overwrite it with `revu-force-write'"
+                          (revu-sidecar-file sidecar)))))
   (revu--sidecar-store sidecar review))
 
 (defun revu-sidecar-force-write (sidecar review)

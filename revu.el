@@ -38,8 +38,10 @@
 (require 'revu-anchor)
 (require 'revu-annotate)
 (require 'revu-diff)
+(require 'revu-export)
 (require 'revu-record)
 (require 'revu-render)
+(require 'revu-reviewed)
 (require 'revu-sidecar)
 
 (defgroup revu nil
@@ -118,8 +120,57 @@ Signal a `user-error' outside a review buffer."
 Where each Annotation belongs, and the state of its Anchor, is derived
 from today's file content on every render and never persisted."
   (let ((review (revu-review)))
-    (revu-render-diff revu--files nil
-                      (revu-annotate-placements review default-directory))))
+    (revu-render-diff revu--files
+                      (revu-reviewed-hidden-p review revu--files)
+                      (revu-annotate-placements review default-directory)
+                      (revu-reviewed-keep-p review revu--files))))
+
+(defun revu--source-text (source root)
+  "Return the unified diff of SOURCE, taken in the repository at ROOT.
+This is how a Source is read again on reload: the Review records what it
+was taken from, so the diff can always be taken anew.  A Review whose
+Source was a pasted diff records the Revisions it spanned, so it is read
+back from the repository like any other range."
+  (pcase (revu-source-kind source)
+    ("worktree" (revu-diff-worktree-text root (revu-source-base source)))
+    ("staged" (revu-diff-staged-text root))
+    ("range" (revu-diff-range-text root
+                                   (revu-source-base source)
+                                   (revu-source-head source)))
+    (kind (user-error "Cannot read a %s Source again" kind))))
+
+;;;###autoload
+(defun revu-reload ()
+  "Read the Sidecar and the Source again, and render the Review anew.
+This is the return leg (ADR-0007): an agent answers a `question' by
+writing a Reply, and may append Annotations of its own, and this is where
+the reviewer sees them.  Both sides are read in one pass, so the
+Annotations are re-anchored against the Source as it is now.
+
+Nothing is merged.  A Sidecar this revu cannot read refuses loudly and
+names where the trouble is; the buffer keeps the Review it was showing
+and the file is left as the agent wrote it, for the reviewer to look at."
+  (interactive)
+  (let* ((review (revu-review))
+         (text (revu--source-text (revu-review-source review)
+                                  default-directory)))
+    (revu-sidecar-reload revu--sidecar)
+    (setq revu--files (revu-diff-parse text))
+    (revu-render)
+    (message "Reloaded %s" (revu-sidecar-file revu--sidecar))))
+
+;;;###autoload
+(defun revu-force-write ()
+  "Write this Review over whatever is in the Sidecar now.
+The way past the write guard, for when the reviewer has read what an
+agent wrote and judges it garbage.  Everything the agent put in the file
+is lost, which is why this is a command of its own and not what a blocked
+Annotation quietly falls back to."
+  (interactive)
+  (let ((review (revu-review)))
+    (revu-sidecar-force-write revu--sidecar review)
+    (revu-render)
+    (message "Wrote %s over what was there" (revu-sidecar-file revu--sidecar))))
 
 (defun revu--read-review-name (source)
   "Prompt for the name of the Review over SOURCE, offering the derived one.

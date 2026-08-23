@@ -71,6 +71,14 @@
   "Face of the body the reviewer wrote on an Annotation."
   :group 'revu)
 
+(defface revu-reply
+  '((t :inherit font-lock-string-face))
+  "Face of the Reply an agent wrote under an Annotation.
+A Reply has a face of its own because its presence is the answered
+signal (ADR-0007): the reviewer tells an answered Annotation from an
+unanswered one by reading the buffer."
+  :group 'revu)
+
 (defface revu-moved
   '((t :inherit warning))
   "Face of the badge on an Annotation whose Anchor was re-found elsewhere."
@@ -99,11 +107,12 @@ either of them.")
   "Where one Annotation renders now, and the state derived for it.
 ANNOTATION is the record, PATH the file it belongs to today, LINE the
 line its Anchor was re-located to and ORIGIN that line's Origin, and
-STATE is `fresh', `moved' or `orphaned'.  An Annotation on the Review has
-no PATH, and one that was not found again has no LINE: it renders under
-the heading of its file, or at the top of the buffer when its file is not
-in the Source at all."
-  annotation path line origin state)
+STATE is `fresh', `moved' or `orphaned'.  END is the last line of a
+range, re-located on its own; only a range Target has one.  An
+Annotation on the Review has no PATH, and one that was not found again
+has no LINE: it renders under the heading of its file, or at the top of
+the buffer when its file is not in the Source at all."
+  annotation path line end origin state)
 
 (defconst revu-render--line-number-width 4
   "Least width of the line-number prefix, in characters.")
@@ -178,9 +187,11 @@ recorded rather than rewriting it later."
   "Insert the Annotation of PLACEMENT as a section of its own.
 The heading names the Kind the reviewer chose and the state derived for
 the Anchor, and the body under it is the section's content, so `TAB'
-folds it away like any other section."
+folds it away like any other section.  An agent's Reply follows the body
+it answers, in a face of its own."
   (let* ((annotation (revu-render-placement-annotation placement))
-         (state (revu-render-placement-state placement)))
+         (state (revu-render-placement-state placement))
+         (reply (revu-annotation-reply annotation)))
     (magit-insert-section (revu-annotation-section
                            (revu-annotation-id annotation))
       (magit-insert-heading
@@ -193,6 +204,10 @@ folds it away like any other section."
       (dolist (line (split-string (revu-annotation-body annotation) "\n"))
         (insert revu-render--annotation-indent "  "
                 (propertize line 'font-lock-face 'revu-annotation-body)
+                "\n"))
+      (dolist (line (and reply (split-string reply "\n")))
+        (insert revu-render--annotation-indent "  "
+                (propertize line 'font-lock-face 'revu-reply)
                 "\n")))))
 
 (defun revu-render--placements-on (placements path)
@@ -229,14 +244,28 @@ reviewer can still see them."
                           lines))
                 placements)))
 
-(defun revu-render-diff (files &optional hidden-p placements)
+(defun revu-render--annotated-p (placements hunk)
+  "Return non-nil when PLACEMENTS puts an Annotation on HUNK.
+PLACEMENTS are the ones already known to belong to HUNK's file.  A whole-file
+Annotation, and one whose Anchor was orphaned, belongs to no hunk: it
+renders under the file's own heading, which is where the annotated-only
+filter keeps it findable."
+  (seq-find (lambda (line)
+              (revu-render--placements-at placements (nth 1 line) (nth 0 line)))
+            (revu-diff-hunk-lines hunk)))
+
+(defun revu-render-diff (files &optional hidden-p placements keep-p)
   "Render FILES, a list of `revu-diff-file', into the current buffer.
 HIDDEN-P is called with the value of each file and hunk section and
 decides whether that section is rendered collapsed; a Reviewed mark
 collapses what it marks through it.  PLACEMENTS are the
 `revu-render-placement's of the Review's Annotations, which render as
-sections under the lines they are about.  Point is left where the same
-section, or failing that the same line, held it before."
+sections under the lines they are about.  KEEP-P is called with the value
+of each file and hunk section and with whether any Annotation is on it,
+and decides whether that section is rendered at all; the buffer's view
+filters shape the render through it, and a nil KEEP-P renders the whole
+Source.  Point is left where the same section, or failing that the same
+line, held it before."
   (let* ((inhibit-read-only t)
          (previous (revu-render--point-state))
          (paths (mapcar #'revu-diff-file-path files))
@@ -253,30 +282,37 @@ section, or failing that the same line, held it before."
       (dolist (file files)
         (let* ((path (revu-diff-file-path file))
                (width (revu-render--number-width file))
-               (mine (revu-render--placements-on placements path)))
-          (magit-insert-section (revu-file-section path
-                                                   (and hidden-p
-                                                        (funcall hidden-p path)))
-            (magit-insert-heading
-              (propertize (revu-render--file-heading file)
-                          'font-lock-face 'revu-file-heading))
-            (dolist (placement (revu-render--unplaced mine file))
-              (revu-render-annotation placement))
-            (dolist (hunk (revu-diff-file-hunks file))
-              (let ((value (cons path (revu-diff-hunk-header hunk))))
-                (magit-insert-section (revu-hunk-section value
-                                                         (and hidden-p
-                                                              (funcall hidden-p
-                                                                       value)))
-                  (magit-insert-heading
-                    (propertize (revu-diff-hunk-header hunk)
-                                'font-lock-face 'revu-hunk-heading))
-                  (dolist (line (revu-diff-hunk-lines hunk))
-                    (revu-render-line path (revu-diff-file-old-path file)
-                                      line width)
-                    (dolist (placement (revu-render--placements-at
-                                        mine (nth 1 line) (nth 0 line)))
-                      (revu-render-annotation placement))))))))))
+               (mine (revu-render--placements-on placements path))
+               (hunks (seq-filter
+                       (lambda (hunk)
+                         (or (null keep-p)
+                             (funcall keep-p
+                                      (cons path (revu-diff-hunk-header hunk))
+                                      (revu-render--annotated-p mine hunk))))
+                       (revu-diff-file-hunks file))))
+          (when (or (null keep-p) (funcall keep-p path (and mine t)))
+            (magit-insert-section (revu-file-section
+                                   path
+                                   (and hidden-p (funcall hidden-p path)))
+              (magit-insert-heading
+                (propertize (revu-render--file-heading file)
+                            'font-lock-face 'revu-file-heading))
+              (dolist (placement (revu-render--unplaced mine file))
+                (revu-render-annotation placement))
+              (dolist (hunk hunks)
+                (let ((value (cons path (revu-diff-hunk-header hunk))))
+                  (magit-insert-section (revu-hunk-section
+                                         value
+                                         (and hidden-p (funcall hidden-p value)))
+                    (magit-insert-heading
+                      (propertize (revu-diff-hunk-header hunk)
+                                  'font-lock-face 'revu-hunk-heading))
+                    (dolist (line (revu-diff-hunk-lines hunk))
+                      (revu-render-line path (revu-diff-file-old-path file)
+                                        line width)
+                      (dolist (placement (revu-render--placements-at
+                                          mine (nth 1 line) (nth 0 line)))
+                        (revu-render-annotation placement)))))))))))
     (revu-render--restore-point previous)))
 
 (defun revu-render--point-state ()
@@ -286,8 +322,10 @@ section, or failing that the same line, held it before."
                (and section (oref section value))))
         (line-number-at-pos)))
 
-(defun revu-render--section-with-value (value)
-  "Return the section whose value is VALUE, or nil when there is none."
+(defun revu-render-section-with-value (value)
+  "Return the section whose value is VALUE, or nil when there is none.
+A section's value is its identity across a render, which is how a command
+finds again what it acted on once the buffer has been built anew."
   (unless (null value)
     (let ((found nil))
       (cl-labels ((walk (section)
@@ -303,7 +341,7 @@ section, or failing that the same line, held it before."
 The section the reviewer was reading is the better answer, because a
 render that adds a line above it would otherwise slide the buffer out
 from under them; the line number is the answer when that section is gone."
-  (let ((section (revu-render--section-with-value (car state))))
+  (let ((section (revu-render-section-with-value (car state))))
     (if section
         (goto-char (oref section start))
       (goto-char (point-min))

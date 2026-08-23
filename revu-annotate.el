@@ -147,11 +147,12 @@ line is read from, so it has to keep saying where the line came from."
     (if (eq (car-safe resolution) 'renamed) (cdr resolution) recorded)))
 
 (defun revu-annotate--locate (annotation root source resolutions cache)
-  "Locate ANNOTATION against today's content.  Return (LINE . STATE).
+  "Locate ANNOTATION against today's content.  Return (LINE END STATE).
 ROOT is the project root, SOURCE the Review's Source, RESOLUTIONS what
 became of each recorded path, and CACHE the content read so far.  LINE is
-the line the Annotation belongs on now, or nil when it was not found;
-STATE is `fresh', `moved' or `orphaned'."
+the line the Annotation belongs on now, or nil when it was not found, and
+END the last line of a range, which only a range has; STATE is `fresh',
+`moved' or `orphaned'."
   (let* ((target (revu-annotation-target annotation))
          (recorded (revu-target-path target))
          (resolution (alist-get recorded resolutions nil nil #'equal))
@@ -164,27 +165,32 @@ STATE is `fresh', `moved' or `orphaned'."
                     (revu-annotate--content-of cache root path))))
     (pcase (revu-target-kind target)
       ((or "review" "file")
-       (cons nil (if (eq resolution 'deleted) 'orphaned 'fresh)))
+       (list nil nil (if (eq resolution 'deleted) 'orphaned 'fresh)))
       ((guard (null anchor))
        ;; An Annotation an agent appended may carry no Anchor at all; its
-       ;; recorded line is then all there is to go on.
-       (cons (or (revu-target-line-number target) (revu-target-start target))
+       ;; recorded lines are then all there is to go on.
+       (list (or (revu-target-line-number target) (revu-target-start target))
+             (revu-target-end target)
              'fresh))
       ("line"
-       (if removed
-           (revu-anchor-locate-removed
-            content (revu-annotate--content-of cache root path) anchor
-            (revu-target-line-number target))
-         (if content
-             (revu-anchor-locate content anchor (revu-target-line-number target))
-           (cons nil 'orphaned))))
+       (let ((located
+              (if removed
+                  (revu-anchor-locate-removed
+                   content (revu-annotate--content-of cache root path) anchor
+                   (revu-target-line-number target))
+                (if content
+                    (revu-anchor-locate content anchor
+                                        (revu-target-line-number target))
+                  (cons nil 'orphaned)))))
+         (list (car located) nil (cdr located))))
       ("range"
        (if (null content)
-           (cons nil 'orphaned)
+           (list nil nil 'orphaned)
          (let ((located (revu-anchor-locate-range content anchor
                                                   (revu-target-start target)
                                                   (revu-target-end target))))
-           (cons (car-safe (car located)) (cdr located))))))))
+           (list (car-safe (car located)) (cdr-safe (car located))
+                 (cdr located))))))))
 
 (defun revu-annotate-placements (review root)
   "Return where every Annotation of REVIEW renders under ROOT.
@@ -213,9 +219,10 @@ is a lie as soon as the file is edited outside Emacs (ADR-0003)."
              (revu-render-placement-create
               :annotation annotation
               :path (revu-annotate--resolved-path recorded resolutions)
-              :line (car located)
+              :line (nth 0 located)
+              :end (nth 1 located)
               :origin (revu-target-origin target)
-              :state (cdr located))))
+              :state (nth 2 located))))
          (append annotations nil))))))
 
 ;;;; Asking the reviewer
