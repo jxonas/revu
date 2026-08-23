@@ -12,6 +12,7 @@
 
 (require 'ert)
 (require 'revu)
+(require 'revu-anchor)
 (require 'revu-record)
 (require 'revu-sidecar)
 (require 'revu-fixture)
@@ -414,9 +415,17 @@ Sidecar it sits in is refused whole, like any other."
         (revu-sidecar-review handle)
         (revu-annotation-create
          "change" (revu-target-range "alpha.txt" 3 5 "added") "Rework this"
-         '((line . "alpha three") (before . ["alpha two"])
-           (after . ["alpha four"]) (digest . "abc")))))
-      (let ((text (revu-fixture-file-contents root ".revu/worktree.json")))
+         (revu-anchor-create-range
+          (revu-fixture-file-contents root "alpha.txt") 3 5))))
+      (let* ((text (revu-fixture-file-contents root ".revu/worktree.json"))
+             (anchor (alist-get 'anchor (revu-record-test--annotation
+                                         (revu-record-test--json file) 0))))
+        (should (equal (alist-get 'line (alist-get 'start anchor))
+                       "alpha three"))
+        (should (equal (alist-get 'count anchor) 3))
+        (should (equal (alist-get 'digest anchor)
+                       (revu-digest (revu-fixture-file-contents
+                                     root "alpha.txt"))))
         (should-not (string-match-p "\"state\"" text))
         (should-not (string-match-p "\"resolution\"" text))
         (should-not (string-match-p "\"author\"" text))))))

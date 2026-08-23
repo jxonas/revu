@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'revu-record)
 
 (defconst revu-fixture-alpha-baseline
   "alpha one\nalpha two\nalpha three\nalpha four\nalpha five\n\
@@ -86,6 +87,31 @@ Return its root.  The caller is responsible for deleting it; use
      (replace-regexp-in-string "alpha seven" "alpha seven in the worktree"
                                revu-fixture-alpha-baseline t t))
     root))
+
+(defun revu-fixture-sidecar (root name)
+  "Return the Review persisted in the Sidecar called NAME under ROOT.
+The Sidecar is read back from disk and decoded, so a test sees what an
+agent reading the file would see.  Return nil when there is no such
+Sidecar."
+  (let ((file (expand-file-name (format ".revu/%s.json" name) root)))
+    (when (file-exists-p file)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (revu-review-decode (buffer-string))))))
+
+(defun revu-fixture-sidecar-text (root name)
+  "Return the raw text of the Sidecar called NAME under ROOT, or nil."
+  (let ((file (expand-file-name (format ".revu/%s.json" name) root)))
+    (when (file-exists-p file)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (buffer-string)))))
+
+(defun revu-fixture-render (&optional buffer)
+  "Return the rendered text of BUFFER, which defaults to the current one.
+Text properties are dropped: a test asserts on what the reviewer reads."
+  (with-current-buffer (or buffer (current-buffer))
+    (buffer-substring-no-properties (point-min) (point-max))))
 
 (defmacro revu-fixture-with-repo (root &rest body)
   "Build the fixture repository, bind its root to ROOT and run BODY.

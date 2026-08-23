@@ -35,7 +35,10 @@
 ;;; Code:
 
 (require 'project)
+(require 'revu-anchor)
+(require 'revu-diff)
 (require 'revu-record)
+(require 'revu-render)
 (require 'revu-sidecar)
 
 (defgroup revu nil
@@ -73,6 +76,144 @@ Signal a `user-error' when PATH belongs to no project."
                     (revu-project-root (or path default-directory)))))
     (make-directory directory t)
     (expand-file-name (concat name ".json") directory)))
+
+;;;; The review buffer
+
+(defvar-local revu--sidecar nil
+  "The Sidecar this review buffer reads and writes its Review through.")
+
+(defvar-local revu--files nil
+  "The parsed Source this review buffer renders, as `revu-diff-file's.")
+
+(defvar-keymap revu-mode-map
+  :parent magit-section-mode-map
+  :doc "Keymap of `revu-mode'.
+The bindings that drive revu's own commands are gathered later, in
+`revu-keymap.el'; what is here is what magit-section and `special-mode'
+already give a read-only tree buffer.")
+
+(define-derived-mode revu-mode magit-section-mode "Revu"
+  "Major mode of the buffer a Source is reviewed in.
+
+The buffer is read-only and is a render of the Review's state: every
+command changes the state, writes it to the Sidecar and renders again.
+Nothing is edited here, and revu never puts a mode on the reviewer's own
+file buffers (ADR-0010)."
+  (setq buffer-read-only t))
+
+(defun revu-buffer-name (name)
+  "Return the name of the buffer the Review called NAME is reviewed in."
+  (format "*revu: %s*" name))
+
+(defun revu-review ()
+  "Return the Review the current buffer is reviewing.
+Signal a `user-error' outside a review buffer."
+  (unless revu--sidecar
+    (user-error "Not in a revu review buffer"))
+  (revu-sidecar-review revu--sidecar))
+
+(defun revu-render ()
+  "Render the current review buffer from the state it carries."
+  (revu-render-diff revu--files))
+
+(defun revu--read-review-name (source)
+  "Prompt for the name of the Review over SOURCE, offering the derived one.
+The default is derived from the Source, so accepting it a second time
+resumes the Review already there rather than starting another."
+  (let ((default (revu-review-name-for-source source)))
+    (read-string (format "Review name (default %s): " default)
+                 nil nil default)))
+
+(defun revu--open (source text name)
+  "Open the Review called NAME over SOURCE, whose diff is TEXT.
+The Sidecar is resumed when one is already there and written when it is
+not; the buffer is reused when the Review is already open.  Return the
+review buffer."
+  (let* ((root (revu-project-root default-directory))
+         (file (revu-sidecar-file-name name root))
+         (sidecar (revu-sidecar-open file (revu-review-create name source)))
+         (files (revu-diff-parse text))
+         (buffer (get-buffer-create (revu-buffer-name name))))
+    (with-current-buffer buffer
+      (unless (derived-mode-p 'revu-mode)
+        (revu-mode))
+      (setq default-directory root
+            revu--sidecar sidecar
+            revu--files files)
+      (revu-render))
+    (pop-to-buffer buffer)
+    buffer))
+
+;;;###autoload
+(defun revu-diff-worktree (&optional name)
+  "Review everything the worktree carries that HEAD does not.
+Staged and unstaged changes alike, because that is what the reviewer is
+about to commit.  NAME names the Review; it is prompted for, with the
+name derived from the Source offered as the default."
+  (interactive)
+  (let* ((root (revu-project-root default-directory))
+         (revision (revu-diff-head-revision root))
+         (source (revu-source-worktree revision))
+         (name (or name (revu--read-review-name source))))
+    (revu--open source (revu-diff-worktree-text root revision) name)))
+
+;;;###autoload
+(defun revu-diff-staged (&optional name)
+  "Review what is staged in the index, against HEAD.
+NAME names the Review; it is prompted for, with the name derived from the
+Source offered as the default."
+  (interactive)
+  (let* ((root (revu-project-root default-directory))
+         (source (revu-source-staged (revu-diff-head-revision root)))
+         (name (or name (revu--read-review-name source))))
+    (revu--open source (revu-diff-staged-text root) name)))
+
+;;;###autoload
+(defun revu-diff-range (&optional base head name)
+  "Review what the Revisions BASE and HEAD differ by.
+NAME names the Review; it is prompted for, with the name derived from the
+Revisions as they were typed -- `main..feature', not the commits they
+resolve to -- offered as the default.  The Review itself records the
+commits, because that is what re-anchoring a removed line needs."
+  (interactive)
+  (let* ((root (revu-project-root default-directory))
+         (base (or base (read-string "Base revision: ")))
+         (head (or head (read-string "Head revision: " "HEAD")))
+         (name (or name (revu--read-review-name (revu-source-range base head))))
+         (source (revu-source-range (revu--resolve root base)
+                                    (revu--resolve root head))))
+    (revu--open source (revu-diff-range-text root base head) name)))
+
+(defun revu--resolve (root revision)
+  "Return the commit REVISION names in ROOT.
+Signal a `user-error' when it names none: a Review that cannot say what
+it was taken between cannot re-locate a removed line later."
+  (or (revu-diff-resolve-revision root revision)
+      (user-error "No such revision in this repository: %s" revision)))
+
+;;;###autoload
+(defun revu-diff-buffer (&optional buffer name)
+  "Review the unified diff already in BUFFER, which defaults to this one.
+NAME names the Review, and is prompted for when it is not given.
+The Revisions are read from the diff's own `index' headers, and the
+Review is recorded as the range between them.  A diff carrying no such
+headers, or naming objects this repository does not have, is refused:
+revu will not review a diff it cannot say the provenance of."
+  (interactive)
+  (let* ((buffer (or buffer (current-buffer)))
+         (text (with-current-buffer buffer
+                 (buffer-substring-no-properties (point-min) (point-max))))
+         (root (revu-project-root default-directory))
+         (revisions (revu-diff-buffer-revisions text)))
+    (unless revisions
+      (user-error "%s carries no diff `index' header naming what it spans"
+                  (buffer-name buffer)))
+    (dolist (object (revu-diff-buffer-objects text))
+      (unless (revu-diff-object-exists-p root object)
+        (user-error "%s names %s, which this repository does not have"
+                    (buffer-name buffer) object)))
+    (let ((source (revu-source-range (car revisions) (cdr revisions))))
+      (revu--open source text (or name (revu--read-review-name source))))))
 
 (provide 'revu)
 ;;; revu.el ends here
