@@ -6,7 +6,7 @@ type: task
 priority: 2
 mode: hitl
 created: '2026-08-22T19:19:12.403717315Z'
-updated: '2026-08-22T19:19:12.403717315Z'
+updated: '2026-08-23T01:43:37.518270711Z'
 parent: dcr-01m0nekb375q
 tags:
 - wayfinder:prototype
@@ -21,3 +21,9 @@ Which base should the review buffer use: built-in `diff-mode` with overlays and 
 Build a throwaway of each on the same git diff: annotate a line, show the annotation inline, navigate between annotations, fold a file. Compare code size, dependency cost, look and feel, and how naturally each extends to plain-file review.
 
 Resolution is an ADR naming the base; the prototype branch is linked, not merged.
+
+## Notes
+
+**2026-08-23T01:43:37.518270711Z**
+
+New evaluation criterion from Reviewed-tracking ticket (dcr-01m0p4k0awfp): how well does each candidate collapse/hide a reviewed hunk or file? magit-section has native section collapsing; diff-mode+overlays would need hand-built invisible-text overlays. Weigh this in the verdict.
