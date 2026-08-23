@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-23T18:34:10.222911718Z'
+updated: '2026-08-23T19:00:39.725542097Z'
 tags:
 - wayfinder:map
 ---
@@ -49,6 +49,10 @@ Decisions so far += [Prototype: diff-mode+overlays vs magit-section for the revi
 **2026-08-23T18:34:10.222911718Z**
 
 Decisions so far += [Reviewed-tracking: mark file/hunk reviewed and hide reviewed sections](dcr-01m0p4k0awfp) — ADR-0009: digest-identified reviewed marks persisted in the sidecar as an additive 'reviewed' array (hunk marks only for diffs, file state derived; plain files one file-content mark); an edit un-reviews by digest mismatch, unmatched marks are kept (revert resurrects); reviewer-private (Export and agent contract ignore it); UI is DWIM toggle + collapse + auto-advance with annotated-only/hide-reviewed render-predicate toggles. New ticket: [Keymap and evil strategy](dcr-01m0qyda4jnd) — package-wide default keys and the evil story, spun out of the grill; v0 spec breakdown now also depends on it. No fog graduated.
+
+**2026-08-23T19:00:39.725542097Z**
+
+Decisions so far += [Keymap and evil strategy](dcr-01m0qyda4jnd) — ADR-0010: one canonical revu-mode-map atop magit-section natives (a/e/k annotate, r reviewed-toggle, E export, g reload, RET visit-Target, ? dispatch) plus first-party guarded evil-define-key* bindings in normal state (pr-review pattern; x delete, gr reload, gj/gk/C-j/C-k sections, za folds — evil-collection conventions bound by us, no evil dep); transient dispatch is the full palette and sole home of force-write and the render filters; all interaction in the dedicated read-only buffer (constraint noted on Plain-file review UX). No fog graduated; no new tickets. Frontier: Plain-file review UX is the last decision before the v0 spec breakdown.
 
 ## Decisions so far
 
