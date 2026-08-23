@@ -36,6 +36,7 @@
 
 (require 'project)
 (require 'revu-anchor)
+(require 'revu-annotate)
 (require 'revu-diff)
 (require 'revu-record)
 (require 'revu-render)
@@ -113,8 +114,12 @@ Signal a `user-error' outside a review buffer."
   (revu-sidecar-review revu--sidecar))
 
 (defun revu-render ()
-  "Render the current review buffer from the state it carries."
-  (revu-render-diff revu--files))
+  "Render the current review buffer from the state it carries.
+Where each Annotation belongs, and the state of its Anchor, is derived
+from today's file content on every render and never persisted."
+  (let ((review (revu-review)))
+    (revu-render-diff revu--files nil
+                      (revu-annotate-placements review default-directory))))
 
 (defun revu--read-review-name (source)
   "Prompt for the name of the Review over SOURCE, offering the derived one.

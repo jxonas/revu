@@ -51,7 +51,7 @@ A Sidecar declaring a higher version is refused rather than guessed at.")
   "The Target kinds an Annotation may be attached to.")
 
 (defconst revu-origins '("added" "removed" "context")
-  "The side of a diff a Target line belongs to.")
+  "Which Origin a Target line carries: which part of a diff it belongs to.")
 
 (defconst revu-source-kinds '("worktree" "staged" "range" "file")
   "The kinds of Source a Review may be taken over.")
@@ -214,14 +214,14 @@ one."
 
 (defun revu-target-line (path line &optional origin)
   "Return a Target naming LINE of the file at PATH.
-ORIGIN is the side of the diff the line belongs to, and is absent for a
+ORIGIN is the Origin the line carries, and is absent for a
 plain-file Target, whose Source kind already says there is no diff."
   (append `((kind . "line") (path . ,path) (line . ,line))
           (when origin `((origin . ,origin)))))
 
 (defun revu-target-range (path start end &optional origin)
   "Return a Target naming lines START to END of the file at PATH.
-ORIGIN is the side of the diff the lines belong to.  A hunk Annotation
+ORIGIN is the Origin the lines carry.  A hunk Annotation
 is a range over the hunk, not a Target kind of its own."
   (append `((kind . "range") (path . ,path) (start . ,start) (end . ,end))
           (when origin `((origin . ,origin)))))

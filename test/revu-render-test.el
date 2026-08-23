@@ -119,7 +119,7 @@ have."
 
 (ert-deftest revu-line-numbers-follow-the-origin-rule ()
   "A removal is numbered in the old file and everything else in the new.
-The fixture line is edited so that the two sides count differently: with
+The fixture line is edited so the old and new files count differently: with
 a line dropped above it, the removed line and the line replacing it carry
 different numbers."
   (revu-render-test--in-repo root
