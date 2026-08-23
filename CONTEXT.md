@@ -36,6 +36,11 @@ Where a Target's `path` stands at load time: `present`, `renamed` (with the new
 path), or `deleted`. Derived per path on load, like Anchor state; never
 persisted. _Avoid_: File status, rename state
 
+**Reply**:
+An agent's answer attached to an Annotation. Its presence marks the
+Annotation as answered.
+_Avoid_: Response, resolution, comment
+
 **Revision**:
 The immutable commit a diff Source was generated from.
 _Avoid_: Ref, version, base (bare)
