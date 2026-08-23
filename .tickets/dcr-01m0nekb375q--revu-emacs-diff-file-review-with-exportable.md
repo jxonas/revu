@@ -6,7 +6,7 @@ type: epic
 priority: 1
 mode: hitl
 created: '2026-08-22T19:19:12.231180857Z'
-updated: '2026-08-23T17:44:43.897075509Z'
+updated: '2026-08-23T18:10:34.208127785Z'
 tags:
 - wayfinder:map
 ---
@@ -41,6 +41,10 @@ Fog graduated: 'Round-trip import' left Not-yet-specified and is now the ticket 
 **2026-08-23T17:44:43.897075509Z**
 
 Decisions so far += [Round-trip import: agent edits to the sidecar shown in Emacs](dcr-01m0p812gcw2) — ADR-0007: in v0 at minimal surface — a manual reload command; schema v1 adds an optional 'reply' string per Annotation (presence = answered, rendered inline); tolerant reader for unknown fields, whole-file refusal on invalid JSON/records with last-good state kept; mtime write guard blocks clobbering agent edits, explicit force-write as escape hatch; kill-ring handoff carries a terse agent contract. No fog graduated; no new tickets.
+
+**2026-08-23T18:10:34.208127785Z**
+
+Decisions so far += [Prototype: diff-mode+overlays vs magit-section for the review buffer](dcr-01m0nekb8ks4) — ADR-0008: the review buffer is built on magit-section (NonGNU ELPA, never full magit): native section collapsing covers reviewed-tracking, annotations are addressable sections, folding is uniform, and render-from-state extends to plain-file review; we own a small diff parser/renderer in exchange. Prototypes linked on branch prototype/review-buffer-base, not merged. No fog graduated; no new tickets. Now unblocked: Plain-file review UX, Reviewed-tracking.
 
 ## Decisions so far
 
