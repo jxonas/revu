@@ -186,7 +186,7 @@ adding a hunk of its own."
                 (replace-regexp-in-string "alpha ten" "alpha ten changed"))))
 
 (defconst revu-fixture-worktree-seven
-  "^ +7 \\+alpha seven in the worktree$"
+  "^\\+alpha seven in the worktree$"
   "The rendered worktree line the point tests put the reviewer on.
 It is the added half of the one line the worktree changes, so it is a
 line with context above it, a removed line beside it and hunks either

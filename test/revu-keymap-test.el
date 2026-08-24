@@ -84,7 +84,7 @@ never in place of them."
   "`a' writes an Annotation to the Sidecar and `k' takes it away again."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-keymap-test--answering "question" "Is seven the right one?"
         (revu-keymap-test--press "a"))
       (let ((annotations (revu-keymap-test--annotations root "worktree")))
@@ -103,7 +103,7 @@ never in place of them."
   "`e' rewrites the body of the Annotation point is in."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "First words")
       (revu-fixture-goto-line-matching "First words")
       (revu-keymap-test--answering "note" "Better words"
@@ -118,7 +118,7 @@ never in place of them."
   "`r' writes a Reviewed mark over the hunk point is in."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-keymap-test--press "r")
       (should (equal (length (revu-review-marks
                               (revu-fixture-sidecar root "worktree")))
@@ -128,7 +128,7 @@ never in place of them."
   "`E' writes the Review out as revdiff markdown beside the Sidecar."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "Worth a look")
       (revu-keymap-test--press "E")
       (let ((file (expand-file-name ".revu/worktree.md" root)))
@@ -315,7 +315,7 @@ filters are asked for too seldom to be worth a letter (ADR-0010)."
     (unwind-protect
         (with-current-buffer (revu-diff-worktree "worktree")
           (revu-fixture-goto-line-matching
-           "^ +7 \\+alpha seven in the worktree$")
+           "^\\+alpha seven in the worktree$")
           (revu-annotate-line "note" "Right here")
           (revu-fixture-goto-line-matching "Right here")
           (revu-keymap-test--press "RET")
@@ -331,7 +331,7 @@ The line is what the reviewer wrote about; the number it had is not."
     (unwind-protect
         (with-current-buffer (revu-diff-worktree "worktree")
           (revu-fixture-goto-line-matching
-           "^ +7 \\+alpha seven in the worktree$")
+           "^\\+alpha seven in the worktree$")
           (revu-annotate-line "note" "Follow me")
           ;; Two lines put in above it push the anchored line down.
           (revu-fixture-write-file
@@ -353,7 +353,7 @@ The line is what the reviewer wrote about; the number it had is not."
     (unwind-protect
         (with-current-buffer (revu-diff-worktree "worktree")
           (revu-fixture-goto-line-matching
-           "^ +7 \\+alpha seven in the worktree$")
+           "^\\+alpha seven in the worktree$")
           (revu-annotate-line "note" "Gone tomorrow")
           (revu-fixture-write-file root "alpha.txt"
                                    "nothing\nof\nthe\nold\nfile\nis\nleft\n")
@@ -373,7 +373,7 @@ The line is what the reviewer wrote about; the number it had is not."
   (revu-fixture-in-repo root
     (unwind-protect
         (with-current-buffer (revu-diff-worktree "worktree")
-          (revu-fixture-goto-line-matching "^ +7 -alpha seven$")
+          (revu-fixture-goto-line-matching "^-alpha seven$")
           (revu-annotate-line "note" "Why did this go?")
           (revu-fixture-goto-line-matching "Why did this go")
           (let ((buffer (current-buffer))
@@ -392,11 +392,35 @@ The line is what the reviewer wrote about; the number it had is not."
     (unwind-protect
         (with-current-buffer (revu-diff-worktree "worktree")
           (revu-fixture-goto-line-matching
-           "^ +7 \\+alpha seven in the worktree$")
+           "^\\+alpha seven in the worktree$")
           (revu-keymap-test--press "RET")
           (should (equal (file-truename (buffer-file-name))
                          (file-truename (expand-file-name "alpha.txt" root))))
           (should (equal (line-number-at-pos) 7)))
+      (revu-keymap-test--kill-file-buffers root))))
+
+(ert-deftest revu-visit-and-reviewed-do-not-depend-on-the-line-number-prefix ()
+  "With numbers drawn, `RET' and `r' land exactly where they do without them.
+The prefix is a view: both commands read the `revu-target' the line
+carries, so turning `revu-line-numbers' on changes what the reviewer
+sees and nothing else (ADR-0011)."
+  (revu-fixture-in-repo root
+    (unwind-protect
+        (let ((revu-line-numbers t)
+              (line "^ +7 \\+alpha seven in the worktree$"))
+          (with-current-buffer (revu-diff-worktree "worktree")
+            (revu-fixture-goto-line-matching line)
+            (revu-keymap-test--press "r")
+            (let ((marks (append (revu-review-marks
+                                  (revu-fixture-sidecar root "worktree"))
+                                 nil)))
+              (should (equal (mapcar #'revu-mark-path marks) '("alpha.txt")))))
+          (with-current-buffer (revu-buffer-name "worktree")
+            (revu-fixture-goto-line-matching line)
+            (revu-keymap-test--press "RET")
+            (should (equal (file-truename (buffer-file-name))
+                           (file-truename (expand-file-name "alpha.txt" root))))
+            (should (equal (line-number-at-pos) 7))))
       (revu-keymap-test--kill-file-buffers root))))
 
 (provide 'revu-keymap-test)

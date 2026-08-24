@@ -32,7 +32,7 @@ The Annotation is in the Sidecar on disk when the command returns, and
 the reviewer can read it in the buffer under the line it is about."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "question" "Is seven the right one?")
       (let* ((annotation (revu-annotate-test--only root "worktree"))
              (target (revu-annotation-target annotation))
@@ -66,7 +66,7 @@ since -- here, a line that says something else entirely."
      (replace-regexp-in-string "alpha three" "alpha three drifted"
                                revu-fixture-alpha-baseline t t))
     (with-current-buffer (revu-diff-range "main" "feature" "main..feature")
-      (revu-fixture-goto-line-matching "^ +3 \\+alpha three on feature$")
+      (revu-fixture-goto-line-matching "^\\+alpha three on feature$")
       (revu-annotate-line "note" "Anchored in what the range shows")
       (let* ((annotation (revu-annotate-test--only root "main..feature"))
              (anchor (revu-annotation-anchor annotation)))
@@ -91,7 +91,7 @@ the Annotation must still be written, valid, and rendered."
         (insert text)
         (revu-diff-buffer (current-buffer) "pasted")))
     (with-current-buffer "*revu: pasted*"
-      (revu-fixture-goto-line-matching "^ +3 \\+alpha three on feature$")
+      (revu-fixture-goto-line-matching "^\\+alpha three on feature$")
       (revu-annotate-line "note" "No blob to anchor in")
       (let ((annotation (revu-annotate-test--only root "pasted")))
         (should-not (revu-annotation-anchor annotation))
@@ -115,7 +115,7 @@ a Target's path as recorded rather than rewriting it later."
      (replace-regexp-in-string "alpha three\n" "" revu-fixture-alpha-baseline))
     (revu-fixture-git-output root "add" "-A")
     (with-current-buffer (revu-diff-staged "staged")
-      (revu-fixture-goto-line-matching "^ +3 -alpha three$")
+      (revu-fixture-goto-line-matching "^-alpha three$")
       (revu-annotate-line "change" "Why did this go?")
       (let* ((annotation (revu-annotate-test--only root "staged"))
              (target (revu-annotation-target annotation))
@@ -132,7 +132,7 @@ No save step, no debounce: the file an agent reads is the review state
 itself (ADR-0002)."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "Landed before the command returned")
       ;; Read the raw file, not revu's own state: this is what an agent
       ;; starting the moment the command returns would find.
@@ -144,9 +144,9 @@ itself (ADR-0002)."
   "Annotating a region records a range Target over the lines it covers."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +8  alpha eight$")
+      (revu-fixture-goto-line-matching "^ alpha eight$")
       (let ((beginning (point)))
-        (revu-fixture-goto-line-matching "^ +10  alpha ten$")
+        (revu-fixture-goto-line-matching "^ alpha ten$")
         (revu-annotate-range beginning (line-end-position) "change"
                              "Rewrite these three"))
       (let ((target (revu-annotation-target
@@ -163,10 +163,10 @@ A range is counted in one file's numbers, and the added Origin is the one
 the revdiff Export renders a mixed run over."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 -alpha seven$")
+      (revu-fixture-goto-line-matching "^-alpha seven$")
       (let ((beginning (point)))
         (revu-fixture-goto-line-matching
-         "^ +7 \\+alpha seven in the worktree$")
+         "^\\+alpha seven in the worktree$")
         (revu-annotate-range beginning (line-end-position) "note" "Both Origins"))
       (let ((target (revu-annotation-target
                      (revu-annotate-test--only root "worktree"))))
@@ -180,11 +180,11 @@ The Annotation sections rendered between the lines are not lines of the
 Source, and a range drawn over them ignores them (ADR-0011)."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +8  alpha eight$")
+      (revu-fixture-goto-line-matching "^ alpha eight$")
       (revu-annotate-line "note" "An Annotation in the way")
-      (revu-fixture-goto-line-matching "^ +8  alpha eight$")
+      (revu-fixture-goto-line-matching "^ alpha eight$")
       (let ((beginning (point)))
-        (revu-fixture-goto-line-matching "^ +9  alpha nine$")
+        (revu-fixture-goto-line-matching "^ alpha nine$")
         (revu-annotate-range beginning (line-end-position) "change"
                              "Across the Annotation"))
       (let* ((annotations (revu-annotate-test--annotations root "worktree"))
@@ -210,7 +210,7 @@ Source, and a range drawn over them ignores them (ADR-0011)."
                   (replace-regexp-in-string "alpha two" "alpha two edited")
                   (replace-regexp-in-string "alpha three" "alpha three edited")))
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+alpha two edited$")
+      (revu-fixture-goto-line-matching "^\\+alpha two edited$")
       (revu-annotate-hunk "question" "What is this hunk for?")
       (let ((target (revu-annotation-target
                      (revu-annotate-test--only root "worktree"))))
@@ -253,7 +253,7 @@ It is not in the worktree to anchor in, and the Revision the Review
 records is what makes it findable (ADR-0003)."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-staged "staged")
-      (revu-fixture-goto-line-matching "^ +2 -beta two$")
+      (revu-fixture-goto-line-matching "^-beta two$")
       (revu-annotate-line "question" "Why did this go?")
       (let* ((annotation (revu-annotate-test--only root "staged"))
              (target (revu-annotation-target annotation))
@@ -267,14 +267,14 @@ records is what makes it findable (ADR-0003)."
                                              root "show" "HEAD:beta.txt")
                                             "\n")))))
       ;; The blob does not move, so the Annotation comes back on its line.
-      (should (string-match-p "^ +2 -beta two\n +question \\[fresh\\]"
+      (should (string-match-p "^-beta two\n +question \\[fresh\\]"
                               (revu-fixture-render))))))
 
 (ert-deftest revu-annotate-edit-rewrites-the-body-in-place ()
   "Editing an Annotation rewrites its body and keeps its Target and Anchor."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "question" "First wording")
       (let ((before (revu-annotate-test--only root "worktree")))
         (revu-fixture-goto-line-matching "^ +question")
@@ -294,9 +294,9 @@ records is what makes it findable (ADR-0003)."
   "Deleting an Annotation takes that one out of the Sidecar and the buffer."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "The one that stays")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "change" "The one that goes")
       (revu-fixture-goto-line-matching "^ +change")
       (revu-annotate-delete)
@@ -333,9 +333,9 @@ The ULID is the identity, so sharing a Target is not sharing a record
 \(ADR-0003)."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "question" "Why seven?")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "change" "Make it eight")
       (should (equal (length (revu-annotate-test--annotations root "worktree")) 2))
       (let ((text (revu-fixture-render)))
@@ -349,7 +349,7 @@ The ULID is the identity, so sharing a Target is not sharing a record
   "An Annotation is a section of its own: point rests on it and TAB folds it."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "question" "Folds away")
       (revu-fixture-goto-line-matching "^ +question")
       (let ((section (magit-current-section)))
@@ -371,7 +371,7 @@ The state is derived from today's content on every render, and is not in
 the Sidecar: a stored state is a lie as soon as the file is edited."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "question" "Still about this line"))
     (revu-fixture-kill-review-buffers)
     ;; The reviewer's colleague adds a line above it and the numbers shift.
@@ -387,7 +387,7 @@ the Sidecar: a stored state is a lie as soon as the file is edited."
         ;; It is rendered under the line it was re-found on, which is one
         ;; further down than the one it was written on.
         (should (string-match-p
-                 "^ +8 \\+alpha seven in the worktree\n +question \\[moved\\]"
+                 "^\\+alpha seven in the worktree\n +question \\[moved\\]"
                  text))))
     (should-not (string-match-p "moved" (revu-fixture-sidecar-text root "worktree")))
     (should-not (string-match-p "state" (revu-fixture-sidecar-text root "worktree")))))
@@ -398,7 +398,7 @@ It is not dropped: it renders under its file's heading, where the
 reviewer can read it and decide."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "change" "About a line that will go"))
     (revu-fixture-kill-review-buffers)
     (revu-fixture-write-file root "alpha.txt"
@@ -415,7 +415,7 @@ reviewer can read it and decide."
 The Kind is asked outright, with no default hiding the choice."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (let ((offered nil))
         (cl-letf (((symbol-function 'completing-read)
                    (lambda (_prompt collection &rest _)

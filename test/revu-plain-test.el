@@ -91,23 +91,26 @@
 ;;;; Render
 
 (ert-deftest revu-plain-renders-one-flat-file-section ()
-  "One file section holds every line; no hunk splits it (ADR-0011)."
+  "One file section holds every line; no hunk splits it (ADR-0011).
+Numbered on purpose: the lines of a plain file count in the file, so the
+blank second line is numbered too and the line after it reads 3."
   (revu-fixture-in-repo root
-    (revu-file (expand-file-name "README.md" root) "plain")
-    (with-current-buffer (revu-buffer-name "plain")
-      (should (= 1 (length (revu-fixture-sections 'revu-file-section))))
-      (should (null (revu-fixture-sections 'revu-hunk-section)))
-      (let ((rendered (revu-fixture-render)))
-        (should (string-match-p "^README\\.md" rendered))
-        (should (string-match-p "^   1 # Fixture$" rendered))
-        (should (string-match-p "^   3 Untouched by any diff\\.$" rendered))))))
+    (let ((revu-line-numbers t))
+      (revu-file (expand-file-name "README.md" root) "plain")
+      (with-current-buffer (revu-buffer-name "plain")
+        (should (= 1 (length (revu-fixture-sections 'revu-file-section))))
+        (should (null (revu-fixture-sections 'revu-hunk-section)))
+        (let ((rendered (revu-fixture-render)))
+          (should (string-match-p "^README\\.md" rendered))
+          (should (string-match-p "^   1 # Fixture$" rendered))
+          (should (string-match-p "^   3 Untouched by any diff\\.$" rendered)))))))
 
 (ert-deftest revu-plain-folds-the-file-section ()
   "The file section folds like any other, which is all ADR-0011 asks of it."
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^   1 # Fixture$")
+      (revu-fixture-goto-line-matching "^# Fixture$")
       (let ((line (point)))
         (revu-fixture-goto-line-matching "^README\\.md")
         (revu-fixture-press-tab)
@@ -140,7 +143,7 @@
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^   3 Untouched by any diff\\.$")
+      (revu-fixture-goto-line-matching "^Untouched by any diff\\.$")
       (revu-annotate-line "question" "What is untouched?"))
     (let* ((review (revu-fixture-sidecar root "plain"))
            (annotation (aref (revu-review-annotations review) 0))
@@ -157,14 +160,14 @@
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^   1 # Fixture$")
+      (revu-fixture-goto-line-matching "^# Fixture$")
       (revu-annotate-line "note" "The title."))
     (revu-fixture-kill-review-buffers)
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
       (should (= 1 (length (revu-fixture-sections 'revu-annotation-section))))
       (should (string-match-p
-               "   1 # Fixture\n    note \\[fresh\\]\n      The title\\."
+               "# Fixture\n    note \\[fresh\\]\n      The title\\."
                (revu-fixture-render))))))
 
 (ert-deftest revu-plain-never-follows-a-rename ()
@@ -172,7 +175,7 @@
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^   1 # Fixture$")
+      (revu-fixture-goto-line-matching "^# Fixture$")
       (revu-annotate-line "note" "The title."))
     (revu-fixture-git-output root "mv" "README.md" "READTHIS.md")
     (revu-fixture-git-output root "commit" "-q" "-m" "Rename the readme")
@@ -213,13 +216,16 @@ Only a file with no content at all has no lines; a blank line is a line
 the reviewer can point at and annotate."
   (revu-fixture-in-repo root
     (revu-fixture-write-file root "blank.txt" "\n")
-    (revu-file (expand-file-name "blank.txt" root) "blank")
-    (with-current-buffer (revu-buffer-name "blank")
-      (should (string-match-p "^   1 $" (revu-fixture-render)))
-      (revu-fixture-goto-line-matching "^   1 $")
-      (revu-annotate-line "note" "The one line there is.")
-      (let ((review (revu-fixture-sidecar root "blank")))
-        (should (equal (seq-length (revu-review-annotations review)) 1))))))
+    ;; Numbered on purpose: what the test is after is that the blank line
+    ;; is a line of the file, and its number is what says so.
+    (let ((revu-line-numbers t))
+      (revu-file (expand-file-name "blank.txt" root) "blank")
+      (with-current-buffer (revu-buffer-name "blank")
+        (should (string-match-p "^   1 $" (revu-fixture-render)))
+        (revu-fixture-goto-line-matching "^   1 $")
+        (revu-annotate-line "note" "The one line there is.")
+        (let ((review (revu-fixture-sidecar root "blank")))
+          (should (equal (seq-length (revu-review-annotations review)) 1)))))))
 
 (ert-deftest revu-plain-still-reads-as-a-plain-file-once-it-is-gone ()
   "A deleted plain file is still a plain file, not a diff of one.
@@ -229,7 +235,7 @@ the render name a change to the file nobody made."
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^   1 # Fixture$")
+      (revu-fixture-goto-line-matching "^# Fixture$")
       (revu-annotate-line "note" "The title."))
     (delete-file (expand-file-name "README.md" root))
     (with-current-buffer (revu-buffer-name "plain")

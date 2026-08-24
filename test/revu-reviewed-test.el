@@ -51,7 +51,7 @@ The digest is taken over the hunk's body lines only: hunk boundaries and
 `@@' numbers regenerate on every diff and are no part of what was read."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (let ((marks (revu-reviewed-test--marks root "worktree")))
         (should (equal (length marks) 1))
@@ -66,10 +66,10 @@ The digest is taken over the hunk's body lines only: hunk boundaries and
   "Toggling a reviewed hunk again drops the mark over what is there now."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (should (equal (length (revu-reviewed-test--marks root "worktree")) 1))
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (should (equal (revu-reviewed-test--marks root "worktree") nil))
       (should-not (oref (car (revu-fixture-hunk-sections "alpha.txt"))
@@ -82,7 +82,7 @@ content that genuinely was read, and putting that content back is what
 brings the mark into force again."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle))
     (let ((reviewed (revu-fixture-file-contents root "alpha.txt")))
       ;; Edit a line inside the hunk, and read the Review again.
@@ -110,7 +110,7 @@ the command runs behind the render: the state decides what the reviewer
 sees (ADR-0008)."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (should (revu-fixture-hidden-on-screen-p
                (car (revu-fixture-hunk-sections "alpha.txt"))))
@@ -124,7 +124,7 @@ sees (ADR-0008)."
   "A hunk read in an earlier sitting comes back collapsed on screen."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle))
     (revu-fixture-kill-review-buffers)
     (with-current-buffer (revu-diff-worktree "worktree")
@@ -142,7 +142,7 @@ neither, and stays folded."
     (with-current-buffer (revu-diff-worktree "worktree")
       (magit-section-hide (revu-reviewed-test--section "beta.txt"))
       (magit-section-hide (nth 1 (revu-fixture-hunk-sections "alpha.txt")))
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (should (revu-fixture-hidden-on-screen-p
                (revu-reviewed-test--section "beta.txt")))
@@ -178,10 +178,10 @@ under it changed; a mark per hunk cannot."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (should-not (oref (revu-reviewed-test--section "alpha.txt") hidden))
-      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha ten changed$")
       (revu-reviewed-toggle)
       (should (oref (revu-reviewed-test--section "alpha.txt") hidden)))))
 
@@ -190,7 +190,7 @@ under it changed; a mark per hunk cannot."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (let ((sections (revu-fixture-hunk-sections "alpha.txt")))
         (should (equal (length sections) 2))
@@ -203,7 +203,7 @@ hunk, and off the end of one it steps to the file below."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha ten changed$")
       (revu-reviewed-toggle)
       (should (= (point) (oref (revu-reviewed-test--section "beta.txt") start))))))
 
@@ -215,9 +215,9 @@ the section was read, and moving through it is one keypress."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-reviewed-toggle)
-      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha ten changed$")
       (revu-reviewed-toggle)
       (should (= (point) (oref (revu-reviewed-test--section "beta.txt") start))))))
 
@@ -249,7 +249,7 @@ buffer's for exactly this reason."
       (revu-reviewed-toggle-hide-reviewed)
       (unwind-protect
           (progn
-            (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+            (revu-fixture-goto-line-matching "^\\+alpha one changed$")
             (revu-reviewed-toggle)
             (let ((rendered (revu-fixture-render)))
               (should-not (string-match-p "alpha one changed" rendered))
@@ -277,7 +277,7 @@ heading is where the reviewer is left, and nothing is opened to get them
 there."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 -gamma one$")
+      (revu-fixture-goto-line-matching "^-gamma one$")
       (revu-reviewed-toggle)
       (let ((gamma (revu-reviewed-test--section "gamma.txt")))
         (should (= (point) (oref gamma start)))
@@ -305,7 +305,7 @@ the nearest rendered section before it is where the reviewer is left."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (goto-char (oref (revu-fixture-hunk-section "alpha.txt" 0) start))
       (revu-reviewed-toggle)
@@ -319,14 +319,14 @@ marked reviewed is still findable while only the annotated-only filter is
 on, and drops out as soon as hide-reviewed joins it."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "question" "Read and asked about")
       ;; Annotated-only leaves the files nothing was written on out.
       (revu-reviewed-toggle-annotated-only)
       (should (string-match-p "alpha\\.txt" (revu-fixture-render)))
       (should-not (string-match-p "beta\\.txt" (revu-fixture-render)))
       ;; Marking it reviewed does not take it away from that filter.
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (should (string-match-p "alpha\\.txt" (revu-fixture-render)))
       ;; With hide-reviewed on as well, both filters have to be passed.
@@ -359,7 +359,7 @@ section again to re-read it leaves the mark on screen."
     (with-current-buffer (revu-diff-worktree "worktree")
       (should-not (string-match-p revu-render-reviewed-glyph
                                   (revu-fixture-render)))
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (let ((section (car (revu-fixture-hunk-sections "alpha.txt"))))
         (should (string-suffix-p revu-render-reviewed-glyph
@@ -379,7 +379,7 @@ pixel-identical to code nobody has read, so rework cannot be told from
 new work."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-reviewed-toggle))
     (revu-fixture-write-file
      root "alpha.txt"
@@ -401,7 +401,7 @@ calling rework new."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle))
     (revu-fixture-write-file
      root "alpha.txt"
@@ -428,7 +428,7 @@ The render says nothing rather than guessing which of them to accuse."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle))
     ;; Rewrite the Sidecar as an older revu would have left it.
     (let ((file (expand-file-name ".revu/worktree.json" root)))
@@ -470,12 +470,12 @@ many of its hunks are read is the question being asked of its heading."
     (with-current-buffer (revu-diff-worktree "worktree")
       (should-not (string-match-p "/" (revu-reviewed-test--heading
                                        "^modified   alpha\\.txt")))
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (should (string-suffix-p "1/2" (revu-reviewed-test--heading
                                       "^modified   alpha\\.txt")))
       ;; Reading the rest of it leaves the glyph to say so on its own.
-      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha ten changed$")
       (revu-reviewed-toggle)
       (let ((heading (revu-reviewed-test--heading "^modified   alpha\\.txt")))
         (should (string-suffix-p revu-render-reviewed-glyph heading))
@@ -520,9 +520,9 @@ It marks the hunk point is in, exactly as no region at all would."
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (let ((transient-mark-mode t))
-        (revu-fixture-goto-line-matching "^ +2  alpha two$")
+        (revu-fixture-goto-line-matching "^ alpha two$")
         (push-mark (point) t t)
-        (revu-fixture-goto-line-matching "^ +4  alpha four$")
+        (revu-fixture-goto-line-matching "^ alpha four$")
         (revu-reviewed-toggle))
       (should (equal (mapcar #'revu-mark-digest
                              (revu-reviewed-test--marks root "worktree"))
@@ -537,9 +537,9 @@ one: inside a body it is Source lines, and `a' has not changed."
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (let ((transient-mark-mode t))
-        (revu-fixture-goto-line-matching "^ +2  alpha two$")
+        (revu-fixture-goto-line-matching "^ alpha two$")
         (push-mark (point) t t)
-        (revu-fixture-goto-line-matching "^ +4  alpha four$")
+        (revu-fixture-goto-line-matching "^ alpha four$")
         (revu-annotate "change" "About these lines"))
       (let ((annotations (append (revu-review-annotations
                                   (revu-fixture-sidecar root "worktree"))
@@ -554,7 +554,7 @@ one: inside a body it is Source lines, and `a' has not changed."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (should (equal (length (revu-reviewed-test--marks root "worktree")) 1))
       (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)

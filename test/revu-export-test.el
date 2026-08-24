@@ -45,11 +45,11 @@ single line, and the file-level record sorts first."
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-fixture-goto-line-matching "^modified   beta\\.txt$")
       (revu-annotate-file "note" "About the whole file")
-      (revu-fixture-goto-line-matching "^ +1  beta one$")
+      (revu-fixture-goto-line-matching "^ beta one$")
       (revu-annotate-line "note" "On the context line")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "On the added line")
-      (revu-fixture-goto-line-matching "^ +2 -beta two$")
+      (revu-fixture-goto-line-matching "^-beta two$")
       (revu-annotate-line "note" "On the removed line")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -62,6 +62,25 @@ single line, and the file-level record sorts first."
                              "\n"
                              "## beta.txt:2 (-)\nOn the removed line\n")))
       (revu-export-test--should-parse text))))
+
+(ert-deftest revu-export-does-not-depend-on-the-line-number-prefix ()
+  "The same Annotation exports the same way whether or not numbers are drawn.
+`revu-line-numbers\' governs a prefix and nothing else: the line the
+Annotation names comes from the `revu-target\' the line carries, which is
+there either way."
+  (revu-fixture-in-repo root
+    (pcase-dolist (`(,name ,numbers ,line)
+                   `(("off" nil "^\\+beta two staged$")
+                     ("on" t "^ +2 \\+beta two staged$")))
+      (let ((revu-line-numbers numbers))
+        (with-current-buffer (revu-diff-worktree name)
+          (revu-fixture-goto-line-matching line)
+          (revu-annotate-line "note" "On the added line")
+          (revu-export))))
+    (should (equal (revu-export-test--exported root "off")
+                   (revu-export-test--exported root "on")))
+    (should (equal (revu-export-test--exported root "off")
+                   "## beta.txt:2 (+)\nOn the added line\n"))))
 
 (ert-deftest revu-export-writes-a-mixed-hunk-over-its-added-lines ()
   "A hunk that both removes and adds lines exports over what it added.
@@ -76,7 +95,7 @@ so it picks the lines the reviewer is being asked to accept."
                                 revu-fixture-alpha-baseline t t)
       t t))
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +6 \\+alpha six rewritten$")
+      (revu-fixture-goto-line-matching "^\\+alpha six rewritten$")
       (revu-annotate-hunk "note" "The whole replacement")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -90,7 +109,7 @@ so it picks the lines the reviewer is being asked to accept."
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\nadded five\n")
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +4 \\+added four$")
+      (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-hunk "note" "Two new lines")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -101,7 +120,7 @@ so it picks the lines the reviewer is being asked to accept."
   "A hunk with nothing added exports over what it removed, in old numbers."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 -gamma one$")
+      (revu-fixture-goto-line-matching "^-gamma one$")
       (revu-annotate-hunk "note" "Why did this go?")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -113,7 +132,7 @@ so it picks the lines the reviewer is being asked to accept."
 That is what revdiff's own writer does, and the parser reads either."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-hunk "note" "One line changed")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -130,9 +149,9 @@ The merged record keeps the widest range either of them drew."
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\nadded five\n")
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +4 \\+added four$")
+      (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-hunk "note" "About both new lines")
-      (revu-fixture-goto-line-matching "^ +4 \\+added four$")
+      (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-line "note" "And about the first of them")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -148,9 +167,9 @@ The format has nowhere to put a Kind, so a `question' carries its own
 mark, and it has to survive being concatenated with a `note'."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Reads fine")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "question" "Is staged the right word")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -167,7 +186,7 @@ mark, and it has to survive being concatenated with a `note'."
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\nadded five\n")
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +4 \\+added four$")
+      (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-hunk "note" "About the new lines")
       (revu-fixture-write-file root "README.md" "nothing\nof\nit\nis\nleft\n")
       (revu-export))
@@ -184,7 +203,7 @@ and the count is said out loud so the reviewer knows what did not go."
       (with-current-buffer (revu-diff-worktree "worktree")
         (revu-annotate-review "note" "The change reads well overall")
         (revu-annotate-review "question" "Is this the right branch?")
-        (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+        (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Kept")
         (setq echoed (ert-with-message-capture messages
                        (revu-export)
@@ -216,7 +235,7 @@ carries the path and the contract and nothing else."
     (let (echoed)
       (with-current-buffer (revu-diff-worktree "worktree")
         (revu-annotate-review "note" "Says nothing about a file")
-        (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+        (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Kept")
         (setq echoed (ert-with-message-capture messages
                        (revu-export)
@@ -236,7 +255,7 @@ Review is feedback the reviewer has withdrawn -- and an agent handed that
 path would act on it."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "change" "Say this differently")
       (should (revu-export))
       (should (revu-export-test--exported root "worktree"))
@@ -253,7 +272,7 @@ the middle of a line are the reviewer's words and go out as written.
 Trailing blank lines go, which is what revdiff's editor does to them."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line
        "note"
        "## looks like a header\n  ## indented\n### deeper\n##foo\nword ## mid\n\n")
@@ -275,11 +294,11 @@ reviewer's words already carry it or open with a word that asks."
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-fixture-goto-line-matching "^modified   beta\\.txt$")
       (revu-annotate-file "note" "plain")
-      (revu-fixture-goto-line-matching "^ +1  beta one$")
+      (revu-fixture-goto-line-matching "^ beta one$")
       (revu-annotate-line "question" "Why is this here?")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "question" "What is this for?")
-      (revu-fixture-goto-line-matching "^ +2 -beta two$")
+      (revu-fixture-goto-line-matching "^-beta two$")
       (revu-annotate-line "question" "really??")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -299,7 +318,7 @@ The Sidecar keeps the path the Target was recorded under; the agent
 reading the Export has only today's files to act on."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Still the same line")
       (revu-fixture-git-output root "mv" "beta.txt" "beta-renamed.txt")
       (revu-export))
@@ -311,7 +330,7 @@ reading the Export has only today's files to act on."
   "A line that moved exports where it is now, not where it was recorded."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "About seven")
       (revu-fixture-write-file
        root "alpha.txt"
@@ -328,7 +347,7 @@ The body still says what the reviewer meant, and revdiff never checks
 that the line is there."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "About seven")
       (revu-fixture-write-file root "alpha.txt"
                                "nothing\nof\nthe\nold\nfile\nis\nleft\n")
@@ -344,11 +363,11 @@ that the line is there."
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\n")
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 -gamma one$")
+      (revu-fixture-goto-line-matching "^-gamma one$")
       (revu-annotate-line "note" "On gamma")
-      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "On alpha")
-      (revu-fixture-goto-line-matching "^ +4 \\+added four$")
+      (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-line "note" "On README")
       (revu-export))
     (let ((text (revu-export-test--exported root "worktree")))
@@ -363,7 +382,7 @@ that the line is there."
   "A Reviewed mark is the reviewer's own bookkeeping and never leaves revu."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Read and understood")
       (revu-fixture-goto-line-matching "^@@ -1,3 \\+1,3 @@")
       (revu-reviewed-toggle)
@@ -379,7 +398,7 @@ that the line is there."
   (revu-fixture-in-repo root
     (let ((elsewhere (expand-file-name "handoff.md" root)))
       (with-current-buffer (revu-diff-worktree "worktree")
-        (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+        (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Somewhere else")
         (should (equal (revu-export elsewhere) elsewhere)))
       (should-not (revu-export-test--exported root "worktree"))
@@ -395,7 +414,7 @@ the rules invents its own."
   (revu-fixture-in-repo root
     (let (echoed)
       (with-current-buffer (revu-diff-worktree "worktree")
-        (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+        (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Something to hand over")
         (setq echoed (ert-with-message-capture messages
                        (revu-export)

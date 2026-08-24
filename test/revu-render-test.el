@@ -93,16 +93,44 @@ different numbers."
      (thread-last revu-fixture-alpha-baseline
                   (replace-regexp-in-string "alpha two\n" "")
                   (replace-regexp-in-string "alpha eight" "alpha eight edited")))
+    (let ((revu-line-numbers t))
+      (with-current-buffer (revu-diff-worktree "worktree")
+        (let ((text (revu-fixture-render)))
+          ;; "alpha two" is line 2 of the old file and is in no new file.
+          (should (string-match-p "^ +2 -alpha two$" text))
+          ;; Its replacement is line 7 of the new file; what it replaced was
+          ;; line 8 of the old one.
+          (should (string-match-p "^ +8 -alpha eight$" text))
+          (should (string-match-p "^ +7 \\+alpha eight edited$" text))
+          ;; Context is numbered in the new file too.
+          (should (string-match-p "^ +8  alpha nine$" text)))))))
+
+(ert-deftest revu-line-numbers-are-off-by-default ()
+  "With `revu-line-numbers' nil no line carries a number prefix.
+The default is off: the reviewer reads the diff, and asks for the numbers
+only when they are going to quote them at an agent (ADR-0011)."
+  (revu-fixture-in-repo root
+    (should-not revu-line-numbers)
     (with-current-buffer (revu-diff-worktree "worktree")
       (let ((text (revu-fixture-render)))
-        ;; "alpha two" is line 2 of the old file and is in no new file.
-        (should (string-match-p "^ +2 -alpha two$" text))
-        ;; Its replacement is line 7 of the new file; what it replaced was
-        ;; line 8 of the old one.
-        (should (string-match-p "^ +8 -alpha eight$" text))
-        (should (string-match-p "^ +7 \\+alpha eight edited$" text))
-        ;; Context is numbered in the new file too.
-        (should (string-match-p "^ +8  alpha nine$" text))))))
+        (should (string-match-p "^\\+alpha seven in the worktree$" text))
+        (should (string-match-p "^-alpha seven$" text))
+        (should-not (string-match-p "^ *[0-9]+ [-+ ]" text))))))
+
+(ert-deftest revu-line-numbers-off-still-name-what-point-is-on ()
+  "A line with no visible number still carries its Target.
+The number lives in the `revu-target' property, so what a command reads
+off the line does not depend on the prefix being drawn."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
+      (let ((target (get-text-property (line-beginning-position) 'revu-target)))
+        (should (equal target (list "alpha.txt" 7 "added")))))
+    (let ((revu-line-numbers t))
+      (with-current-buffer (revu-diff-worktree "numbered")
+        (revu-fixture-goto-line-matching "\\+alpha seven in the worktree$")
+        (should (equal (get-text-property (line-beginning-position) 'revu-target)
+                       (list "alpha.txt" 7 "added")))))))
 
 (ert-deftest revu-render-nests-hunk-sections-under-their-file ()
   "Every hunk section sits under the section of the file it belongs to."
@@ -267,7 +295,7 @@ fold of the hunk above it as soon as a filter dropped one."
     (with-current-buffer (revu-diff-worktree "worktree")
       (magit-section-hide (nth 1 (revu-fixture-hunk-sections "alpha.txt")))
       (revu-reviewed-toggle-hide-reviewed)
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       ;; Marking the first hunk read drops it from the render.
       (revu-reviewed-toggle)
       (let ((hunks (revu-fixture-hunk-sections "alpha.txt")))
@@ -482,9 +510,9 @@ decide about."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
-      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-render)
       (should-not (invisible-p (point)))
       (let ((section (magit-current-section)))
@@ -497,9 +525,9 @@ A removed line is named under the path the file had before the diff
 renamed it, so its Target is not the one the lines around it carry."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching "^ +7 -alpha seven$")
+      (revu-fixture-goto-line-matching "^-alpha seven$")
       (revu-annotate-line "note" "This is what it said before.")
-      (should (string-match-p "^ +7 -alpha seven$"
+      (should (string-match-p "^-alpha seven$"
                               (buffer-substring-no-properties
                                (line-beginning-position)
                                (line-end-position)))))))
@@ -544,7 +572,7 @@ Point is on a body line, where a reviewer reading a hunk holds it."
     (with-current-buffer (revu-buffer-name "plain")
       ;; A plain file's lines are the file section's own body, so point on
       ;; one of them makes the file section current (ADR-0011).
-      (revu-fixture-put-point-on-and-highlight "^ +1 # Fixture$")
+      (revu-fixture-put-point-on-and-highlight "^# Fixture$")
       (should (eq (revu-fixture-face-on-screen "^README\\.md$")
                   'magit-section-highlight))
       (should (eq (revu-fixture-face-on-screen "# Fixture")

@@ -20,3 +20,9 @@ Decisions:
 - Synthetic all-context hunks around annotations: closer to the diff look, but adds windowing logic v0 doesn't need; a flat file with folding covers it.
 - Multi-file plain Reviews (Source as a file set): a record and model change for a use case (folder-of-docs review) not yet asked for; left in the fog.
 - `display-line-numbers-mode` for numbering: free, but numbers buffer lines, not file lines, once annotation sections are interleaved.
+
+## Amendment: drawing the numbers is optional, and off by default
+
+The prefix bullet above reads as though the numbers only exist when they are drawn. They do not depend on it: every rendered line carries its number in the `revu-target` property it is propertized with, and every Annotation records it, so a reviewer who quotes a line at an agent has the number to quote whether or not the buffer draws it. What this ADR decided is the drawing, and the drawing is a view — revu's own inserted text, four columns at least on every line, and most reading does not want it.
+
+`revu-line-numbers` governs the prefix and nothing else. It defaults to nil, off, because the diff itself is what the reviewer came to read. Turning it on renders the prefix exactly as the bullet above describes. Nothing downstream of the render sees the difference: Annotations, visiting, Export and Reviewed marks all read the Target on the line, never the text in front of it.

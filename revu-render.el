@@ -57,9 +57,13 @@
 ;;
 ;; Every source line carries a `revu-target' text property -- its path, its
 ;; number and its Origin -- so a command can tell what the reviewer is
-;; pointing at, and a dim line-number prefix, because reviewers talk to
-;; agents in line numbers (ADR-0011).  Text is faced with
-;; `font-lock-face': `global-font-lock-mode' strips `face'.
+;; pointing at.  The number is also drawn, as a dim prefix, when
+;; `revu-line-numbers' is on: reviewers talk to agents in line numbers, so
+;; the record holds them always, and the buffer shows them on request
+;; (ADR-0011).  It is off by default, and turning it either way changes
+;; nothing but the sight of the numbers -- Annotations, visiting, Export
+;; and Reviewed marks read the Target, never the prefix.  Text is faced
+;; with `font-lock-face': `global-font-lock-mode' strips `face'.
 
 ;;; Code:
 
@@ -72,7 +76,7 @@
 
 (defface revu-line-number
   '((t :inherit shadow))
-  "Face of the line-number prefix revu puts on every rendered line."
+  "Face of the line-number prefix, when `revu-line-numbers' has it drawn."
   :group 'revu)
 
 (defface revu-file-heading
@@ -188,6 +192,18 @@ has no LINE: it renders under the heading of its file, or at the top of
 the buffer when its file is not in the Source at all."
   annotation path line end origin state)
 
+;; The `revu' customization group is defined in `revu.el', which is
+;; loaded after this file; a group is only a symbol either way.
+(defcustom revu-line-numbers nil
+  "Whether the Review buffer draws each source line's number in front of it.
+Off by default: the prefix is revu's own inserted text, four columns at
+least on every line, and most reading does not want it.  It is a view and not a
+record -- a line is named by the `revu-target' property it carries, so
+Annotations, visiting, Export and Reviewed marks read the same line
+either way (ADR-0011)."
+  :type 'boolean
+  :group 'revu)
+
 (defconst revu-render--line-number-width 4
   "Least width of the line-number prefix, in characters.")
 
@@ -214,14 +230,17 @@ nothing for a status word to say about it (ADR-0011)."
               (revu-diff-file-path file)))))
 
 (defun revu-render--number-width (file)
-  "Return the width the line-number prefix takes for FILE.
+  "Return the width the line-number prefix takes for FILE, or nil for no prefix.
 One width per file keeps a file's lines aligned with each other, whatever
-the numbers on either side of it reach."
-  (let ((widest 0))
-    (dolist (hunk (revu-diff-file-hunks file))
-      (dolist (line (revu-diff-hunk-lines hunk))
-        (setq widest (max widest (length (number-to-string (nth 1 line)))))))
-    (max revu-render--line-number-width widest)))
+the numbers on either side of it reach.  There is no width to find when
+`revu-line-numbers' is off: nothing is drawn, and the scan for the widest
+number would be a walk over every line of the file for nothing."
+  (when revu-line-numbers
+    (let ((widest 0))
+      (dolist (hunk (revu-diff-file-hunks file))
+        (dolist (line (revu-diff-hunk-lines hunk))
+          (setq widest (max widest (length (number-to-string (nth 1 line)))))))
+      (max revu-render--line-number-width widest))))
 
 (defun revu-render--line-face (origin)
   "Return the face a line of ORIGIN is rendered in."
@@ -231,11 +250,13 @@ the numbers on either side of it reach."
     (_ 'diff-context)))
 
 (defun revu-render-line (path old-path line width)
-  "Insert LINE of the file at PATH, prefixed by its number in WIDTH columns.
+  "Insert LINE of the file at PATH, numbered in WIDTH columns when numbers are on.
 LINE is (ORIGIN NUMBER TEXT).  The number is the line's number in the
 file its Origin counts in -- the old file for a removal, the new file for
 anything else -- and the whole line carries a `revu-target' property naming
-what the reviewer is pointing at.
+what the reviewer is pointing at.  The prefix is drawn only when
+`revu-line-numbers' is on; the property is there either way, which is
+what makes the prefix a view and not a record.
 
 A removed line is named under OLD-PATH, the path the file had before the
 diff renamed it, because that is the only path the line exists under: it
@@ -244,8 +265,10 @@ recorded rather than rewriting it later."
   (pcase-let ((`(,origin ,number ,text) line))
     (insert
      (propertize
-      (concat (propertize (format (format "%%%dd " width) number)
-                          'font-lock-face 'revu-line-number)
+      (concat (if revu-line-numbers
+                  (propertize (format (format "%%%dd " width) number)
+                              'font-lock-face 'revu-line-number)
+                "")
               (propertize text 'font-lock-face (revu-render--line-face origin))
               "\n")
       'revu-target (list (if (equal origin "removed") old-path path)
