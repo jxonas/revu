@@ -14,5 +14,9 @@ Eldev-local
 .claude/worktrees/
 .claude/settings.local.json
 
+# A large diff kept in the working tree to measure a render against.  It
+# belongs to another project and is not ours to carry.
+/sample.diff
+
 # revu review state (the sidecar the package writes; users of revu are told to ignore it too)
 .revu/

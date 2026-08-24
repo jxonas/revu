@@ -289,6 +289,21 @@ filters shape the render through it, and a nil KEEP-P renders the whole
 Source.  Point is left where the same section, or failing that the same
 line, held it before."
   (let* ((inhibit-read-only t)
+         ;; A section's `start', `content' and `end' are plain positions
+         ;; here, not the markers magit-section makes by default.  That is
+         ;; sound because nothing ever edits a review buffer in place:
+         ;; ADR-0008 makes every change to a Review a full re-render, and
+         ;; every insertion in the package is inside this render pass, so
+         ;; an integer cannot go stale under a section.  It is also what
+         ;; keeps a render's cost flat -- `erase-buffer' does not detach a
+         ;; marker, so markers left by earlier renders would be adjusted
+         ;; again by every insertion this one makes, and a large Source
+         ;; would get slower the longer it was reviewed.  Anyone adding an
+         ;; in-place edit to a review buffer breaks this and must move the
+         ;; positions back to markers.  Not `delay': that converts
+         ;; everything back to markers at the end of the build, which is
+         ;; the population this binding exists to avoid.
+         (magit-section-inhibit-markers t)
          (previous (revu-render--point-state))
          (paths (mapcar #'revu-diff-file-path files))
          ;; An Annotation on the Review, and one on a file the Source does
