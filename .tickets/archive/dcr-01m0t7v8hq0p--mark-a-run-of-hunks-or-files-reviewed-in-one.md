@@ -6,8 +6,8 @@ type: feature
 priority: 2
 mode: afk
 created: '2026-08-24T15:57:23.895567324Z'
-updated: '2026-08-24T17:06:19.322777963Z'
-closed: '2026-08-24T17:06:19.322777963Z'
+updated: '2026-08-24T20:16:59.642015097Z'
+closed: '2026-08-24T20:16:59.642015097Z'
 acceptance:
 - title: A region spanning sibling hunk headings marks every hunk in it reviewed
   done: true
@@ -110,3 +110,13 @@ A selection marks and never flips, so hunks already read inside a run keep their
 Point advances over the Source's order rather than the buffer's, which is one path for hide-reviewed on and off instead of the two the design proposed: with the filter on there is no section left in the buffer to walk on from, and a position taken before the render is wrong as soon as the file heading above the run leaves too.
 
 ADR-0009 was amended as well as ADR-0008: it recorded mark-reviewed as a toggle, and over a run it is not one. 13 tests added; 200 pass.
+
+**2026-08-24T20:16:59.554159962Z**
+
+Reopened: under evil, V over a run of headings and r marked only the section point was on. Before a command runs evil widens a linewise selection to the start of the line after the last one, which is the first character of the last section's body, and magit-region-sections requires the region end to sit strictly inside a heading, so it returned nil and the command fell back to the section at point. The tests built the region with point on the last heading's start, the vanilla gesture, and never saw it. evil-collection carries the same fix for magit-mode buffers only, which a revu buffer is not.
+
+Fix: the evil block gives revu-reviewed-toggle evil's :exclude-newline command property, so the widened region ends on the heading's newline. One test on the stubbed block. 229 pass.
+
+**2026-08-24T20:16:59.642015097Z**
+
+Reopened once: the region gesture failed under evil's V because evil widens a linewise selection past the last heading's newline. Fixed by giving revu-reviewed-toggle the :exclude-newline property in the evil block.

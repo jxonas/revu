@@ -63,6 +63,7 @@
 (declare-function revu-force-write "revu")
 
 (declare-function evil-define-key* "ext:evil-core" (state keymap key def &rest bindings))
+(declare-function evil-add-command-properties "ext:evil-common" (command &rest properties))
 
 ;;;; Visiting what point is on
 
@@ -157,7 +158,16 @@ The mnemonics of the canonical map are kept wherever the letter is not a
 motion evil users rely on, and moved where it is: `x' deletes rather than
 `k', `gr' reloads rather than `g', and walking and folding go under `g'
 and `z' where evil-collection puts them for a magit-section buffer.  No
-initial state is set: the buffer stays in normal state like any other."
+initial state is set: the buffer stays in normal state like any other.
+
+`revu-reviewed-toggle' is also told to leave the final newline out of a
+linewise selection.  Before a command runs, evil widens a `V' selection
+to the start of the line after the last one selected, which is the first
+character of that section's body, and a region ending there is not a
+section selection to `magit-region-sections': it selects nothing, and
+`r' would mark only the section point is on.  evil-collection does the
+same for magit's own buffers, and only for those."
+  (evil-add-command-properties 'revu-reviewed-toggle :exclude-newline t)
   (evil-define-key* '(normal motion) map
                     (kbd "a") #'revu-annotate
                     (kbd "e") #'revu-annotate-edit

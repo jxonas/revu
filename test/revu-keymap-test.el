@@ -177,9 +177,26 @@ conventions, not evil's state machinery."
                (lambda (_states keymap &rest bindings)
                  (while bindings
                    (keymap-set keymap (key-description (pop bindings))
-                               (pop bindings))))))
+                               (pop bindings)))))
+              ((symbol-function 'evil-add-command-properties) #'ignore))
       (revu-keymap-bind-evil map))
     map))
+
+(ert-deftest revu-keymap-evil-marking-leaves-the-newline-out-of-a-linewise-selection ()
+  "The evil block gives `revu-reviewed-toggle' the `:exclude-newline' property.
+Evil widens a `V' selection to the start of the line after the last one
+before a command runs; that is the first character of the last section's
+body, and a region ending there is no section selection to
+`magit-region-sections'.  Without the property, `r' over a run of
+headings marks only the section point is on."
+  (let ((properties nil))
+    (cl-letf (((symbol-function 'evil-define-key*) #'ignore)
+              ((symbol-function 'evil-add-command-properties)
+               (lambda (command &rest plist)
+                 (push (cons command plist) properties))))
+      (revu-keymap-bind-evil (make-sparse-keymap)))
+    (should (equal (alist-get 'revu-reviewed-toggle properties)
+                   '(:exclude-newline t)))))
 
 (ert-deftest revu-keymap-evil-bindings-follow-evil-collection-conventions ()
   "The evil block keeps the mnemonics and moves what evil needs as a motion.
