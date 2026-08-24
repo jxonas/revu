@@ -1,28 +1,29 @@
 ---
 id: dcr-01m0rmwaeggd
 title: A Reviewed mark has no visual indication beyond collapsing
-status: open
+status: closed
 type: bug
 priority: 2
 mode: afk
 created: '2026-08-24T01:06:41.230405527Z'
-updated: '2026-08-24T01:18:09.000590080Z'
+updated: '2026-08-24T12:42:35.113351301Z'
+closed: '2026-08-24T12:42:35.113351301Z'
 tags:
 - render
 - reviewed
 acceptance:
 - title: Reviewed, stale and unreviewed are visually distinct on a hunk heading with every view toggle off
-  done: false
+  done: true
 - title: The indication survives expanding a collapsed reviewed section
-  done: false
+  done: true
 - title: A partly reviewed file heading shows how many of its hunks match
-  done: false
+  done: true
 - title: A plain-file Review shows the state on its file heading
-  done: false
+  done: true
 - title: 'ADR-0009 amended: collapse is no longer the sole indication, and the three derived states are recorded'
-  done: false
+  done: true
 - title: CONTEXT.md carries the three states under Reviewed mark
-  done: false
+  done: true
 links:
 - dcr-01m0rkxmpxza
 ---
@@ -62,3 +63,15 @@ A plain-file Source persists one mark over the whole content, so the indication 
 Considered and rejected: a gutter mark beside the line numbers, which survives expanding a section but places the indication at line granularity when ADR-0009 holds marks at hunk granularity — it would claim something the model does not hold. Also rejected: colour alone, which reads as "this is special somehow" rather than naming which state it is.
 
 ADR-0009 needs amending. Its "In the buffer" paragraph makes collapse the indication; it becomes one of two things marking does, alongside the state the heading renders. Its remark that "staleness needs no flag" stays true and should be left standing — it is about persistence, and `stale` is derived.
+
+## Notes
+
+**2026-08-24T12:42:35.113351301Z**
+
+A heading now carries the Reviewed state as a glyph: a check, dimmed, for reviewed, and an undimmed 'not equal to' for stale. Being heading text it survives opening a collapsed section and owes nothing to the view toggles, so collapse is one of two things marking does rather than the only sign it happened. A diff file part-way read shows how many of its hunks match (1/2); a plain file wears the glyph alone.
+
+The three states are derived on every render and never persisted, the discipline ADR-0003 and ADR-0004 already set. Deriving 'stale' per hunk forced the one design decision here, and it is a schema addition: a digest matching nothing says something under this path was read and changed, not which region, so attributing it by path alone would badge a hunk nobody read as rework -- the same class of lie ADR-0009 rejected file-level marks for. A mark now also records the base-file lines its region covered. That is locality and not identity: it takes no part in matching, the base side holds still while the worktree moves, and a mark with no span (a plain file's, or one an older revu wrote) attributes to nothing. The field is additive and the old validator only ever checked the digest, so old Sidecars still load. ADR-0009 records all of it, including the rejected alternatives.
+
+AC6 was already half met by e351355: the three states live in a sibling 'Reviewed state' glossary entry rather than literally under 'Reviewed mark', which is the better split and was kept. The 'Reviewed mark' entry gained the span.
+
+Deriving the states also had to stay cheap. The first cut asked the marks about a path once per hunk and hashed the whole file to answer, which is the render cost dcr-01m0rne3grr6 had just finished killing; the marks on a path are now found before any digest is taken, and the render memoises the answer by path. 170 tests, lint and compile green.
