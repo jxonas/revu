@@ -126,14 +126,18 @@ the buffer when its file is not in the Source at all."
     (_ "modified ")))
 
 (defun revu-render--file-heading (file)
-  "Return the heading text of FILE, a `revu-diff-file'."
-  (concat (revu-render--status-label (revu-diff-file-status file))
+  "Return the heading text of FILE, a `revu-diff-file'.
+A plain file is named and nothing more: there is no diff, so there is
+nothing for a status word to say about it (ADR-0011)."
+  (if (revu-diff-file-plain file)
+      (revu-diff-file-path file)
+    (concat (revu-render--status-label (revu-diff-file-status file))
           "  "
           (if (equal (revu-diff-file-status file) "renamed")
               (format "%s -> %s"
                       (revu-diff-file-old-path file)
                       (revu-diff-file-path file))
-            (revu-diff-file-path file))))
+              (revu-diff-file-path file)))))
 
 (defun revu-render--number-width (file)
   "Return the width the line-number prefix takes for FILE.
@@ -210,6 +214,17 @@ it answers, in a face of its own."
                 (propertize line 'font-lock-face 'revu-reply)
                 "\n")))))
 
+(defun revu-render--lines (hunk file width placements)
+  "Insert the lines of HUNK of FILE, in WIDTH columns, with their PLACEMENTS.
+The Annotations on a line are inserted as sections under it, which is
+what makes them foldable and addressable (ADR-0008)."
+  (dolist (line (revu-diff-hunk-lines hunk))
+    (revu-render-line (revu-diff-file-path file) (revu-diff-file-old-path file)
+                      line width)
+    (dolist (placement (revu-render--placements-at
+                        placements (nth 1 line) (nth 0 line)))
+      (revu-render-annotation placement))))
+
 (defun revu-render--placements-on (placements path)
   "Return the PLACEMENTS that belong to the file at PATH."
   (seq-filter (lambda (placement)
@@ -283,9 +298,10 @@ line, held it before."
         (let* ((path (revu-diff-file-path file))
                (width (revu-render--number-width file))
                (mine (revu-render--placements-on placements path))
+               (plain (revu-diff-file-plain file))
                (hunks (seq-filter
                        (lambda (hunk)
-                         (or (null keep-p)
+                         (or plain (null keep-p)
                              (funcall keep-p
                                       (cons path (revu-diff-hunk-header hunk))
                                       (revu-render--annotated-p mine hunk))))
@@ -300,19 +316,19 @@ line, held it before."
               (dolist (placement (revu-render--unplaced mine file))
                 (revu-render-annotation placement))
               (dolist (hunk hunks)
-                (let ((value (cons path (revu-diff-hunk-header hunk))))
-                  (magit-insert-section (revu-hunk-section
-                                         value
-                                         (and hidden-p (funcall hidden-p value)))
-                    (magit-insert-heading
-                      (propertize (revu-diff-hunk-header hunk)
-                                  'font-lock-face 'revu-hunk-heading))
-                    (dolist (line (revu-diff-hunk-lines hunk))
-                      (revu-render-line path (revu-diff-file-old-path file)
-                                        line width)
-                      (dolist (placement (revu-render--placements-at
-                                          mine (nth 1 line) (nth 0 line)))
-                        (revu-render-annotation placement)))))))))))
+                ;; A plain file is the diff render minus the hunk split: its
+                ;; lines sit flat under the one file section (ADR-0011).
+                (if plain
+                    (revu-render--lines hunk file width mine)
+                  (let ((value (cons path (revu-diff-hunk-header hunk))))
+                    (magit-insert-section (revu-hunk-section
+                                           value
+                                           (and hidden-p
+                                                (funcall hidden-p value)))
+                      (magit-insert-heading
+                        (propertize (revu-diff-hunk-header hunk)
+                                    'font-lock-face 'revu-hunk-heading))
+                      (revu-render--lines hunk file width mine))))))))))
     (revu-render--restore-point previous)))
 
 (defun revu-render--point-state ()

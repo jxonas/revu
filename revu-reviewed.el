@@ -97,13 +97,22 @@ is the path and the `@@' header the hunk was rendered with."
     (let ((file (revu-reviewed--file files value)))
       (and file (revu-diff-file-hunks file)))))
 
-(defun revu-reviewed--digests (files value)
-  "Return the digest of each hunk of FILES the section valued VALUE covers."
-  (mapcar #'revu-reviewed-hunk-digest (revu-reviewed--hunks files value)))
-
 (defun revu-reviewed--path (value)
   "Return the path the section valued VALUE belongs to."
   (if (consp value) (car value) value))
+
+(defun revu-reviewed--digests (files value)
+  "Return the digests the section of FILES valued VALUE is read by.
+A diff is read hunk by hunk, so a section covering several of them is
+asserted one digest at a time.  A plain file has no hunks to divide it,
+so the assertion degrades to a single digest over the whole content the
+reviewer read, verbatim (ADR-0009, ADR-0011)."
+  (let ((file (revu-reviewed--file files (revu-reviewed--path value))))
+    (if (and file (revu-diff-file-plain file))
+        ;; A file that is gone has no content to have been read.
+        (when (revu-diff-file-content file)
+          (list (revu-digest (revu-diff-file-content file))))
+      (mapcar #'revu-reviewed-hunk-digest (revu-reviewed--hunks files value)))))
 
 ;;;; Whether a mark still holds
 

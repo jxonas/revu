@@ -52,8 +52,15 @@
 PATH is the file as the diff leaves it and OLD-PATH as it found it; they
 differ only for a rename.  STATUS is `modified', `added', `deleted' or
 `renamed', and HUNKS are the file's hunks, in diff order -- a rename with
-no edits and a mode change both have none."
-  path old-path status hunks)
+no edits and a mode change both have none.
+
+PLAIN says the file is a plain file under review rather than one the
+diff parser built, and CONTENT is what it holds, verbatim -- nil for a
+plain file that has since been deleted, which is why PLAIN and not
+CONTENT is what tells the two apart.  A plain file's Reviewed mark is
+taken over exactly these bytes (ADR-0009), which is why they are kept
+rather than re-joined from the lines."
+  path old-path status hunks plain content)
 
 (cl-defstruct (revu-diff-hunk (:constructor revu-diff-hunk-create)
                               (:copier nil))
