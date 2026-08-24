@@ -48,8 +48,16 @@
 ;; reviewer is not confused with one nobody has read.
 ;;
 ;; Marking collapses what it marks, badges its heading with the state,
-;; and moves the reviewer on to the next hunk they have not read.  A
-;; region across sibling headings marks the whole run it selects, in one
+;; and moves the reviewer on to the heading of the next sibling in Source
+;; order that is rendered, reviewed or not: hunk to hunk within a file,
+;; and off the last hunk of one file to the file below it.  A heading
+;; under a fold is not one point can be left on -- Emacs pushes point out
+;; of invisible text and past everything the fold covers -- so a heading
+;; folded over is stood for by the heading of the fold, and no fold is
+;; opened to make room.  A run advances from the last section it covered,
+;; and unmarking moves point nowhere at all.
+;;
+;; A region across sibling headings marks the whole run it selects, in one
 ;; Sidecar write and one render; the selection is a gesture and is
 ;; persisted nowhere, because the marks it leaves are the marks one press
 ;; per section would have left (ADR-0008).  Collapse is never the only
@@ -333,42 +341,85 @@ that grew out of those lines."
   (dolist (digest digests review)
     (setq review (revu-review-remove-marks review digest))))
 
-(defun revu-reviewed--hunk-values (files)
-  "Return the value of every hunk of FILES, in Source order.
+(defun revu-reviewed--hunk-values (files path)
+  "Return the value of every hunk of FILES under PATH, in Source order.
 A hunk's value is its identity across a render, so a walk over these
-finds what the buffer holds however the filters have shaped it."
+finds what the buffer holds however the view filters have shaped it."
+  (mapcar (lambda (hunk) (revu-render-hunk-value path hunk))
+          (revu-reviewed--hunks files path)))
+
+(defun revu-reviewed--section-values (files)
+  "Return the value of every file and hunk of FILES, in Source order."
   (seq-mapcat (lambda (file)
                 (let ((path (revu-diff-file-path file)))
-                  (mapcar (lambda (hunk) (revu-render-hunk-value path hunk))
-                          (revu-diff-file-hunks file))))
+                  (cons path (revu-reviewed--hunk-values files path))))
               files))
 
-(defun revu-reviewed--last-hunk (files value)
-  "Return the value of the last hunk of FILES the section valued VALUE covers.
-Nil when it covers none, which is a rename that changed no line."
-  (let ((hunks (revu-reviewed--hunks files value)))
-    (when hunks
-      (revu-render-hunk-value (revu-reviewed--path value) (car (last hunks))))))
+(defun revu-reviewed--siblings-after (files value)
+  "Return the siblings of VALUE in FILES that follow it, nearest first.
+A hunk's siblings are the rest of the hunks of its file, and then, off
+the end of them, the files below its own: marking the last hunk of a file
+finishes that file, and what comes next is the next file.  A file's
+siblings are the files below it, its own hunks being under it rather than
+beside it."
+  (let* ((path (revu-reviewed--path value))
+         (later (cdr (member path (mapcar #'revu-diff-file-path files)))))
+    (if (consp value)
+        (append (cdr (member value (revu-reviewed--hunk-values files path)))
+                later)
+      later)))
+
+(defun revu-reviewed--sections-after (files value)
+  "Return the values of FILES that come after VALUE in Source order.
+The hunks of a file are under it rather than after it, so a file's own
+hunks are none of them: they are the section the reviewer just marked,
+seen from the inside."
+  (let ((rest (cdr (member value (revu-reviewed--section-values files)))))
+    (if (consp value)
+        rest
+      (seq-drop-while (lambda (other)
+                        (equal (revu-reviewed--path other) value))
+                      rest))))
+
+(defun revu-reviewed--nearest-position (files value)
+  "Return where point can be left nearest the section of FILES valued VALUE.
+Its own heading when that is on screen, and otherwise the heading of the
+nearest section rendered after it in Source order, or of the nearest one
+before it.  This is where a mark with nothing after it to advance to
+leaves the reviewer: with `revu-reviewed-hide-reviewed' on, marking the
+last section takes it out of the buffer, and the section above it is as
+close to where they were as the render can put them."
+  (or (revu-render-heading-position value)
+      (seq-some #'revu-render-heading-position
+                (revu-reviewed--sections-after files value))
+      (seq-some #'revu-render-heading-position
+                (nreverse (seq-take-while
+                           (lambda (other) (not (equal other value)))
+                           (revu-reviewed--section-values files))))))
 
 (defun revu-reviewed--advance (files after)
-  "Put point on the first unreviewed hunk rendered after AFTER, a hunk of FILES.
+  "Put point on the heading of the first sibling rendered after AFTER.
+AFTER is the value of the section of FILES that was just marked, and the
+sibling is taken reviewed or not: the advance says where the reviewer is
+in the Source, and stepping over what they have marked already would land
+them somewhere they cannot predict from what is on screen.
+
 The walk is over the Source's order rather than the buffer's, because
 with `revu-reviewed-hide-reviewed' on what was just marked has left the
-buffer and there is no section there to walk on from.
+buffer and there is no section there to walk on from.  A heading under a
+fold is stood for by the heading of the fold, so no gesture of marking
+ever puts point in text the reviewer cannot see or opens a fold of theirs
+to make room (`revu-render-heading-position').
 
-Point stays where it is when nothing after AFTER is both unread and
-rendered: the reviewer has read to the end of what is shown, and moving
-them anywhere else would be a guess.  A plain file is read whole and
-renders no hunk section at all (ADR-0011), so there is nothing to advance
-to in one and point keeps its place."
-  (let* ((review (revu-review))
-         (rest (cdr (member after (revu-reviewed--hunk-values files))))
-         (next (seq-some (lambda (value)
-                           (and (not (revu-reviewed-p review files value))
-                                (revu-render-section-with-value value)))
-                         rest)))
-    (when next
-      (goto-char (oref next start)))))
+With no sibling after it left in the buffer the reviewer has read to the
+end of what is shown, and point stays as near to what they marked as the
+render allows: on its own heading, or, once a view filter has taken that
+away, on the nearest heading after it or before it."
+  (let ((position (or (seq-some #'revu-render-heading-position
+                                (revu-reviewed--siblings-after files after))
+                      (revu-reviewed--nearest-position files after))))
+    (when position
+      (goto-char position))))
 
 (defun revu-reviewed--forget-visibility (section)
   "Forget every fold a Reviewed mark on SECTION has just taken over.
@@ -418,26 +469,25 @@ no line -- is passed over and is not in it."
 
 (defun revu-reviewed--place-point (files marked unmark)
   "Put point where a gesture over the sections valued MARKED should leave it.
-Point goes back on the first of them, which is what the reviewer acted
-on, and then, unless UNMARK, on past the whole run to the next hunk of
-FILES they have not read.  With `revu-reviewed-hide-reviewed' on there is
-nothing left of the run to go back to, and only the move on happens."
-  (let ((rendered (revu-render-section-with-value (car marked))))
-    (when rendered
-      (goto-char (oref rendered start))))
+Marking moves the reviewer on from the last section of FILES it marked,
+so a run advances from its end rather than from its beginning.
+UNMARK moves point nowhere at all: taking a mark back is not reading
+anything, and the reviewer is left looking at what they just changed
+their mind about."
   (unless unmark
-    (revu-reviewed--advance files
-                            (revu-reviewed--last-hunk files
-                                                      (car (last marked))))))
+    (revu-reviewed--advance files (car (last marked)))))
 
 ;;;###autoload
 (defun revu-reviewed-toggle (&optional unmark)
   "Mark the hunk or file point is in reviewed, or unmark it.
 A hunk is marked on its own; a file is marked one hunk at a time, because
 a diff persists hunk marks only (ADR-0009).  Marking collapses what it
-marks and moves point on to the next hunk not read yet; unmarking drops
-only the marks over the content that is there now, so an assertion about
-content that has since changed is left where it is.
+marks and moves point on to the heading of the next sibling rendered
+after it, reviewed or not -- the next hunk of the file, or the next file
+once the last hunk of one is marked -- and onto the heading of the fold
+instead whenever that sibling lies under one.  Unmarking moves point nowhere; it
+drops only the marks over the content that is there now, so an assertion
+about content that has since changed is left where it is.
 
 With the region selecting a run of sibling headings, every hunk or file
 in the run is marked in one gesture, in one Sidecar write and one render.

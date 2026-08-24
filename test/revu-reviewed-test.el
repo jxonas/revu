@@ -185,8 +185,8 @@ under it changed; a mark per hunk cannot."
       (revu-reviewed-toggle)
       (should (oref (revu-reviewed-test--section "alpha.txt") hidden)))))
 
-(ert-deftest revu-reviewed-toggle-advances-to-the-next-unreviewed-hunk ()
-  "Marking a hunk moves the reviewer on to the next hunk they have not read."
+(ert-deftest revu-reviewed-toggle-advances-to-the-next-hunk ()
+  "Marking a hunk moves the reviewer on to the next hunk's heading."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
@@ -196,12 +196,53 @@ under it changed; a mark per hunk cannot."
         (should (equal (length sections) 2))
         (should (= (point) (oref (nth 1 sections) start)))))))
 
+(ert-deftest revu-reviewed-toggle-advances-from-the-last-hunk-to-the-next-file ()
+  "The section after the last hunk of a file is the next file itself.
+The advance is one walk over siblings: within a file it steps hunk to
+hunk, and off the end of one it steps to the file below."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-reviewed-toggle)
+      (should (= (point) (oref (revu-reviewed-test--section "beta.txt") start))))))
+
+(ert-deftest revu-reviewed-toggle-advances-onto-what-was-read-already ()
+  "The next sibling is the next sibling, reviewed or not.
+Stepping over read work would leave the reviewer somewhere they cannot
+predict from what is on screen; the badge on the heading already says
+the section was read, and moving through it is one keypress."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +2 \\+beta two staged$")
+      (revu-reviewed-toggle)
+      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-reviewed-toggle)
+      (should (= (point) (oref (revu-reviewed-test--section "beta.txt") start))))))
+
+(ert-deftest revu-reviewed-toggle-advances-past-a-collapsed-file ()
+  "With every file collapsed, marking one lands on the next file's heading.
+A heading below a fold is not somewhere point can be left: Emacs pushes
+it out of the invisible text at the end of the command, past the whole
+file the fold covers.  The fold is the reviewer's own and the advance
+leaves it alone."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (mapc #'magit-section-hide (revu-fixture-sections 'revu-file-section))
+      (revu-fixture-goto-line-matching "^modified   alpha\\.txt")
+      (revu-reviewed-toggle)
+      (let ((beta (revu-reviewed-test--section "beta.txt")))
+        (should (= (point) (oref beta start)))
+        (should (revu-fixture-hidden-on-screen-p beta))))))
+
 (ert-deftest revu-reviewed-toggle-advances-with-hide-reviewed-on ()
-  "Hiding what is read does not cost the reviewer the move to what is not.
+  "Hiding what is read does not cost the reviewer the move to what is next.
 With hide-reviewed on, the hunk just marked leaves the buffer entirely,
-so there is no section left to collapse -- but the reviewer still asked
-to be moved on, and grinding through a large Source is the whole point of
-the filter."
+so there is no section left to advance from -- but the reviewer still
+asked to be moved on, and grinding through a large Source is the whole
+point of the filter.  The walk is over the Source's order rather than the
+buffer's for exactly this reason."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
@@ -210,16 +251,66 @@ the filter."
           (progn
             (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
             (revu-reviewed-toggle)
-            ;; The marked hunk has left the buffer; the one left is unread,
-            ;; and point is on its heading rather than stranded.
             (let ((rendered (revu-fixture-render)))
               (should-not (string-match-p "alpha one changed" rendered))
               (should (string-match-p "alpha ten changed" rendered)))
-            (should (string-prefix-p
-                     "@@"
-                     (buffer-substring-no-properties
-                      (point) (line-end-position)))))
+            (let ((sections (revu-fixture-hunk-sections "alpha.txt")))
+              (should (equal (length sections) 1))
+              (should (= (point) (oref (car sections) start)))))
         (setq revu-reviewed-hide-reviewed nil)))))
+
+(ert-deftest revu-reviewed-toggle-stays-on-the-last-file-of-the-source ()
+  "Marking the last file leaves point on it: there is nowhere to advance to.
+Moving anywhere else would be a guess, and the reviewer has read to the
+end of what is shown."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^deleted    gamma\\.txt")
+      (revu-reviewed-toggle)
+      (should (= (point) (oref (revu-reviewed-test--section "gamma.txt") start))))))
+
+(ert-deftest revu-reviewed-toggle-lands-on-the-heading-of-a-collapsed-parent ()
+  "Point never lands under a fold; it lands on the heading of the fold.
+Marking the last hunk of the last file makes that file read, so the
+render collapses it and the hunk's own heading goes with it.  The file's
+heading is where the reviewer is left, and nothing is opened to get them
+there."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +1 -gamma one$")
+      (revu-reviewed-toggle)
+      (let ((gamma (revu-reviewed-test--section "gamma.txt")))
+        (should (= (point) (oref gamma start)))
+        (should (revu-fixture-hidden-on-screen-p gamma))))))
+
+(ert-deftest revu-reviewed-toggle-falls-back-to-what-is-above-it ()
+  "With the last file marked and hidden, point goes to the section above it.
+Nothing rendered follows what was marked and what was marked is gone, so
+the nearest rendered section before it is where the reviewer is left."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-reviewed-toggle-hide-reviewed)
+      (unwind-protect
+          (progn
+            (revu-fixture-goto-line-matching "^deleted    gamma\\.txt")
+            (revu-reviewed-toggle)
+            (should-not (string-match-p "gamma" (revu-fixture-render)))
+            (should (= (point)
+                       (oref (revu-reviewed-test--section "delta-renamed.txt")
+                             start))))
+        (setq revu-reviewed-hide-reviewed nil)))))
+
+(ert-deftest revu-reviewed-unmarking-does-not-move-point ()
+  "Taking a mark back is not reading anything, so it moves nobody on."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-reviewed-toggle)
+      (goto-char (oref (revu-fixture-hunk-section "alpha.txt" 0) start))
+      (revu-reviewed-toggle)
+      (should (= (point) (oref (revu-fixture-hunk-section "alpha.txt" 0)
+                               start))))))
 
 (ert-deftest revu-reviewed-filters-shape-the-render-and-compose ()
   "The two filters each shape the render, and both at once compose.
@@ -562,7 +653,9 @@ large Source is expensive to redraw."
         (should (equal renders 1))))))
 
 (ert-deftest revu-reviewed-toggle-advances-past-a-marked-run ()
-  "Marking a run moves the reviewer on to the first hunk it did not cover."
+  "Marking a run moves the reviewer on from the last section it covered.
+The run ends on the last hunk of alpha.txt, so the section after it is
+beta.txt."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
@@ -570,11 +663,10 @@ large Source is expensive to redraw."
           (revu-fixture-hunk-section "alpha.txt" 1)
         (revu-reviewed-toggle))
       (should (equal (point)
-                     (oref (car (revu-fixture-hunk-sections "beta.txt"))
-                           start))))))
+                     (oref (revu-reviewed-test--section "beta.txt") start))))))
 
 (ert-deftest revu-reviewed-toggle-advances-past-a-run-with-hide-reviewed-on ()
-  "With the run gone from the buffer, the move on to unread work survives.
+  "With the run gone from the buffer, the move on to the next work survives.
 Advancing from where point ended up would leave the reviewer above the
 run and re-offer the hunks they just read."
   (revu-fixture-in-repo root
@@ -589,7 +681,7 @@ run and re-offer the hunks they just read."
               (revu-reviewed-toggle))
             (should-not (string-match-p "alpha" (revu-fixture-render)))
             (should (equal (point)
-                           (oref (car (revu-fixture-hunk-sections "beta.txt"))
+                           (oref (revu-reviewed-test--section "beta.txt")
                                  start))))
         (setq revu-reviewed-hide-reviewed nil)))))
 

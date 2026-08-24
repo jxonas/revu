@@ -450,14 +450,42 @@ top of the buffer."
                                            nil (selected-window))
                        3))))))
 
-(ert-deftest revu-render-leaves-point-on-a-heading-when-a-mark-folds-the-line ()
-  "Marking a hunk Reviewed folds it, and leaves point on its heading.
-The line point was on is still rendered, but the fold has hidden it:
-putting point back on it would put the reviewer in text they cannot see."
+(ert-deftest revu-render-heading-position-answers-with-the-fold-over-it ()
+  "A heading under a fold hands the question to the heading of the fold.
+Point in invisible text is pushed out of it at the end of the command,
+past everything the fold covers, which is the jump a reviewer sees as a
+whole file skipped.  The fold itself is left exactly as it was: it is the
+reviewer's own."
   (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      (let ((file (car (revu-fixture-sections 'revu-file-section)))
+            (hunk (revu-fixture-hunk-section "alpha.txt" 1)))
+        (should (equal (revu-render-heading-position (oref hunk value))
+                       (oref hunk start)))
+        (magit-section-hide file)
+        (should (equal (revu-render-heading-position (oref hunk value))
+                       (oref file start)))
+        (should (revu-fixture-hidden-on-screen-p file)))
+      ;; A value nothing rendered carries has no heading to go to.
+      (should-not (revu-render-heading-position '("nowhere.txt" . "@@"))))))
+
+(ert-deftest revu-render-leaves-point-on-a-heading-when-a-mark-folds-the-line ()
+  "A render leaves point on the heading of the fold over the line it was on.
+The line point was on is still rendered, but a Reviewed mark has folded
+the hunk over it: putting point back on it would put the reviewer in text
+they cannot see.
+
+Marking moves the reviewer on to the next section, so the test puts them
+back on the folded line first -- that is the position this render has to
+decide about."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle)
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-render)
       (should-not (invisible-p (point)))
       (let ((section (magit-current-section)))
         (should (object-of-class-p section 'revu-hunk-section))

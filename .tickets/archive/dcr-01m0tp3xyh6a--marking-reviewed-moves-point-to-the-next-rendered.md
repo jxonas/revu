@@ -1,29 +1,30 @@
 ---
 id: dcr-01m0tp3xyh6a
 title: Marking reviewed moves point to the next rendered sibling, never past a collapsed file
-status: open
+status: closed
 type: bug
 priority: 2
 mode: afk
 created: '2026-08-24T20:06:48.017193054Z'
-updated: '2026-08-24T20:06:48.214161587Z'
+updated: '2026-08-24T20:39:35.505149308Z'
+closed: '2026-08-24T20:39:35.505149308Z'
 acceptance:
 - title: With every file collapsed, marking file N puts point on the heading of file N+1, reviewed or not
-  done: false
+  done: true
 - title: Marking a hunk puts point on the next hunk's heading; marking the last hunk of a file puts it on the next file's heading
-  done: false
+  done: true
 - title: When the next sibling's heading is inside a collapsed parent, point lands on that parent's heading and no fold is changed
-  done: false
+  done: true
 - title: Marking a run advances from the last marked section by the same rule
-  done: false
+  done: true
 - title: With no next sibling, point stays on the marked section's heading; with hide-reviewed on, on the nearest rendered section after where it was, else before
-  done: false
+  done: true
 - title: Un-marking never moves point
-  done: false
+  done: true
 - title: The advance tests are rewritten to the new rule and one covers the collapsed-next-file case
-  done: false
+  done: true
 - title: The Commentary and docstrings describe the rule; CONTEXT.md is untouched
-  done: false
+  done: true
 links:
 - dcr-01m0tp3xvnyq
 - dcr-01m0tp3y1th9
@@ -42,3 +43,9 @@ One rule for files and hunks. After *marking*, point goes to the heading of the 
 Source order rather than buffer order because with hide-reviewed on the marked section is gone from the buffer; the existing code already walks Source order, so this is the same walk minus the unreviewed filter plus the fold guard.
 
 Decided in a grilling session on 2026-08-24, together with the evil j/k bindings and the line-number defcustom.
+
+## Notes
+
+**2026-08-24T20:39:35.505149308Z**
+
+Marking reviewed now advances by one rule for files and hunks: point goes to the heading of the next sibling in Source order that is rendered, reviewed or not -- hunk to hunk within a file, and off the last hunk of a file to the file below it. The old rule sought the next unreviewed hunk with no invisibility guard, so with the files collapsed point was placed inside a fold and Emacs bumped it past the whole file: every mark skipped a file. The fold guard is revu-render-heading-position, sharing the walk revu-render--restore-point already had, and it asks the overlay on screen rather than the hidden slot a render resolved. A run advances from the last section it marked; with no sibling left point stays as near to what was marked as the render allows (its own heading, else the nearest rendered section after it, else before). Unmarking moves point nowhere. Review found the duplicate fold walk and a fallback scan that could land inside the file just marked; both fixed. 239 tests green.

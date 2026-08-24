@@ -584,16 +584,33 @@ instead."
                   (lambda (candidate) (equal candidate target)))))
       (and found (not (invisible-p found)) found))))
 
-(defun revu-render--section-position (ident)
-  "Return where the heading of the section IDENT names is, or nil.
+(defun revu-render--heading-position (section)
+  "Return where the heading standing for SECTION is, or nil for no SECTION.
 A section a fold has hidden hands the question to its parent, so the
-reviewer lands on the heading of whatever is holding their section
-closed rather than inside it."
+reviewer lands on the heading of whatever is holding their section closed
+rather than inside it: point in invisible text is pushed out of it at the
+end of the command, past everything the fold covers.  Nothing is opened
+to make room -- a fold is the reviewer's own.
+
+What is asked is the overlay on screen and not the `hidden' slot the
+render resolved: the slot is magit-section's model of visibility and only
+`magit-section-hide' puts it on screen (ADR-0008)."
+  (while (and section (invisible-p (oref section start)))
+    (setq section (oref section parent)))
+  (and section (oref section start)))
+
+(defun revu-render--section-position (ident)
+  "Return where the heading of the section IDENT names is, or nil."
   (when (and ident magit-root-section)
-    (let ((section (magit-get-section ident)))
-      (while (and section (invisible-p (oref section start)))
-        (setq section (oref section parent)))
-      (and section (oref section start)))))
+    (revu-render--heading-position (magit-get-section ident))))
+
+(defun revu-render-heading-position (value)
+  "Return where point can be left for the section valued VALUE, or nil.
+Nil when nothing rendered carries VALUE: a view filter has taken it out
+of the buffer and there is no heading to go to.  A heading under a fold
+answers with the heading of the fold, as `revu-render--heading-position'
+says there."
+  (revu-render--heading-position (revu-render-section-with-value value)))
 
 (defun revu-render--line-position (line)
   "Return where buffer LINE begins."
