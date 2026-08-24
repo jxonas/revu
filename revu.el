@@ -31,6 +31,16 @@
 ;;
 ;; This file carries the package entry points and the helpers that
 ;; locate the project root and the Sidecar directory.
+;;
+;; A reviewer who has magit can pick what to review with magit's own
+;; commands, through `revu-magit-mode' in `revu-magit.el'.  That mode is
+;; experimental (ADR-0013), off by default, and the only place revu
+;; reaches past `magit-section' into magit: it appends a "Review in
+;; revu" switch to the `magit-diff' transient and advises the functions
+;; magit's diff commands funnel through.  Since those are magit's
+;; commands, magit's semantics stand -- a commit selection in a log
+;; reviews `oldest..newest', leaving the oldest selected commit's own
+;; changes out.  Nothing in this file loads magit.
 
 ;;; Code:
 

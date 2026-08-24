@@ -17,7 +17,8 @@ Why the switch rather than an action: an action has to reproduce magit's
 DWIM and its prompts to get the same diff magit would have shown, and it
 cannot be saved as a default. The two setup functions are the single funnel
 every `magit-diff` action passes through, their signatures carry the whole
-recipe -- `(range typearg args files type)` and `(rev files)` -- and neither
+recipe -- `(range typearg args files &optional type locked)` and
+`(rev args files)` -- and neither
 is double-dash private. Advising them is a deliberate reach past the line
 ADR-0008 draws at `magit-section`, and it is the only one: the bridge lives
 in its own `revu-magit.el`, behind a global minor mode `revu-magit-mode`
@@ -44,11 +45,27 @@ What the advice maps, and what it refuses:
   Path resolution key on, so revu pins them.
 - `--no-index` (`undefined` type) and stashes refuse with a `user-error`.
   There are no Revisions in the first and no stash Source for the second.
+  A stash does not reach `magit-diff-setup-buffer`: `magit-stash-show`
+  has a funnel of its own, `magit-stash-setup-buffer`, so the bridge
+  advises three functions rather than two, and the third only refuses.
+- A range magit built with one side omitted (`..B`) is that side read as
+  `HEAD`, which is the diff git would have taken; a lone revision is the
+  worktree against it, so `d w` is the worktree Source. revu's worktree
+  and staged Sources are both against `HEAD`, so a `d w` or a `d s` given
+  another revision with a prefix argument refuses rather than quietly
+  reviewing `HEAD` instead.
 
 Revision names arrive from magit as full object ids; the derived Review
 name abbreviates them the way magit's log shows them. The name is still
 prompted for, so that a reviewer who accepts it twice resumes the same
 Review.
+
+The switch is appended beside the `magit-diff` transient's own actions,
+not into `magit-diff-infix-arguments`. That group is shared with
+`magit-diff-refresh`, and a switch that surfaced under `D` would offer to
+re-route a refresh of a diff buffer, which is not a thing it can do.
+Appended where it is, it round-trips exactly: turning the mode off leaves
+`magit-diff`'s layout as it found it and `magit-diff-refresh`'s untouched.
 
 The switch may be saved as a default with transient's `C-x s`. That makes
 every `d` action open revu until it is toggled off, which is the "I review
@@ -58,14 +75,20 @@ special-casing transient's persistence.
 The bridge requires magit 4.4 or later: the buffer-local names it reads
 (`magit-buffer-diff-range`, `magit-buffer-diff-typearg`,
 `magit-buffer-revision-oid`) were renamed in 4.4 with no obsolete aliases,
-and `boundp` shims for 4.3 are the kind of code that rots unnoticed.
+and `boundp` shims for 4.3 are the kind of code that rots unnoticed. As
+built, the bridge reads none of those: the advice is handed the whole
+recipe as arguments. The version is checked when the mode is turned on
+anyway, so that an older magit says so in one sentence rather than
+failing somewhere inside the advice.
 
 **Experimental.** The mapping is pure and is unit-tested with magit absent;
 magit is a development dependency for byte-compilation only, not a test
-dependency. The advice, the switch and `source.paths` may change or be
-removed. Graduating is editing this file's status and, if the bridge
-survives, revisiting whether a fixture-driven test of the advice earns its
-dependency tree.
+dependency. Magit's own defaults, `--stat` and `--no-ext-diff`, are
+dropped without a word: neither changes how a change is cut, and naming
+them would mean naming every invocation, which says nothing. The advice,
+the switch and `source.paths` may change or be removed. Graduating is
+editing this file's status and, if the bridge survives, revisiting
+whether a fixture-driven test of the advice earns its dependency tree.
 
 ## Considered options
 

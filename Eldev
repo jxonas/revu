@@ -5,3 +5,10 @@
 
 ;; Test files require `revu-fixture', which lives beside them.
 (eldev-add-loading-roots 'test "test")
+
+;; The magit Bridge (ADR-0013) is compile-checked only: magit is here so
+;; that `revu-magit.el' byte-compiles and lints against the real names,
+;; and deliberately not a test dependency -- the mapping the tests cover
+;; is pure and runs with magit absent.
+(eldev-add-extra-dependencies 'build '(:package magit :version "4.4"))
+(eldev-add-extra-dependencies 'lint '(:package magit :version "4.4"))

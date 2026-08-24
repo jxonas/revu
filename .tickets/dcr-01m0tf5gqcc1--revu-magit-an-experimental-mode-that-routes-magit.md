@@ -6,7 +6,7 @@ type: feature
 priority: 2
 mode: afk
 created: '2026-08-24T18:05:19.977014267Z'
-updated: '2026-08-24T18:05:30.338007551Z'
+updated: '2026-08-24T18:48:45.996997764Z'
 acceptance:
 - title: revu-magit-mode enable installs the advice and the transient switch; disable removes both, and a magit without the mode is untouched
   done: false
@@ -35,3 +35,9 @@ The mapping (ADR-0013): committed ranges pass through as magit built them, so a 
 ## Design
 
 New file revu-magit.el, autoloaded mode only; (require 'magit) inside the mode's enable, never at top level of revu core. Requires magit >= 4.4 (buffer-local names magit-buffer-diff-range, -typearg, magit-buffer-revision-oid; no aliases exist for 4.3). The advice bodies delegate to one pure function, e.g. revu-magit-plan (range typearg args files type) -> either (revu-command . arguments) or (refuse . message), plus a sibling for (rev files). That function is where every decision lives and is unit-tested with magit absent, on a fixture repo where needed for merge-base and rev-parse. The advice wiring and transient-append-suffix are compile-checked only: add magit as a development dependency in Eldev (byte-compile and lint), not a test dependency. Verify first whether transient-append-suffix on 'magit-diff can add the switch to the shared magit-diff-infix-arguments group without it surfacing in magit-diff-refresh (D); if it surfaces there, the advice ignores the switch when the current buffer is a magit-diff-mode buffer being refreshed. Saving the switch with C-x s is allowed and untouched. Out of scope, recorded for later: a per-file render filter from the section at point, a reverse jump from a Review into magit, an unstaged Source, a stash Source.
+
+## Notes
+
+**2026-08-24T18:48:45.996997764Z**
+
+Deviation from the acceptance line 'every other diff argument is dropped with a message when any were set': magit always passes its own defaults --stat and --no-ext-diff, so reporting literally every argument would put a message on every single invocation. Those two pass unremarked -- --stat asks for a summary section revu does not render, and revu's own diffs already pass --no-ext-diff, so neither changes how a change is cut. Everything else is named. Recorded in ADR-0013.

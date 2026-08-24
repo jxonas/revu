@@ -121,6 +121,23 @@ opened over a diff git refused to produce would be a review of nothing."
     (when (eq (car result) 0)
       (string-trim (cdr result)))))
 
+(defun revu-diff-merge-base (root a b)
+  "Return the commit where Revisions A and B last diverged in ROOT.
+Return nil when they share no history, or when either names nothing.
+This is what a three-dot range means, and a Source records the commit it
+resolves to rather than the notation it was written with."
+  (let ((result (revu-diff--call root (list "merge-base" a b))))
+    (when (eq (car result) 0)
+      (string-trim (cdr result)))))
+
+(defun revu-diff-abbreviate-revision (root revision)
+  "Return REVISION abbreviated as far as ROOT still resolves it.
+This is git's own abbreviation, which is the length a log shows an
+object id at.  Return nil when git will not abbreviate it."
+  (let ((result (revu-diff--call root (list "rev-parse" "--short" revision))))
+    (when (eq (car result) 0)
+      (string-trim (cdr result)))))
+
 (defun revu-diff-object-exists-p (root object)
   "Return non-nil when OBJECT names an object present in ROOT.
 A blob is an object but not a Revision, so this is the question a diff's
