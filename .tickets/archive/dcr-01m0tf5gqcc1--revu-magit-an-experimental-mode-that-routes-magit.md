@@ -6,7 +6,7 @@ type: feature
 priority: 2
 mode: afk
 created: '2026-08-24T18:05:19.977014267Z'
-updated: '2026-08-24T18:50:16.081784130Z'
+updated: '2026-08-24T19:20:10.541118667Z'
 closed: '2026-08-24T18:50:16.081784130Z'
 acceptance:
 - title: revu-magit-mode enable installs the advice and the transient switch; disable removes both, and a magit without the mode is untouched
@@ -25,6 +25,7 @@ deps:
 - dcr-01m0tf4y88xe
 links:
 - dcr-01m0t3rxangn
+- dcr-01m0tkej1jg9
 ---
 
 ## Description

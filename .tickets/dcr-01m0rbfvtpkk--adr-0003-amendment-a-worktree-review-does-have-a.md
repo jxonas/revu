@@ -6,12 +6,14 @@ type: task
 priority: 3
 mode: hitl
 created: '2026-08-23T22:22:35.862419935Z'
-updated: '2026-08-23T22:22:35.862419935Z'
+updated: '2026-08-24T19:20:10.541118667Z'
 tags:
 - needs-triage
 acceptance:
 - title: ADR-0003 records which Sources have a base blob and which do not, and why
   done: false
+links:
+- dcr-01m0tkej1jg9
 ---
 
 ## Description
