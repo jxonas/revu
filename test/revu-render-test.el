@@ -178,6 +178,47 @@ one section does."
         (dolist (file (folded-files))
           (should (revu-fixture-hidden-on-screen-p file)))))))
 
+(ert-deftest revu-render-keeps-a-hunk-fold-across-an-edit-to-its-file ()
+  "A hunk the reviewer folded is still folded once its file changes under it.
+Reload exists to show what changed, and a hunk's header text changes with
+it, so a fold keyed on that text is lost on exactly the render the
+reviewer asked for.  A hunk's fold is keyed on its position among its
+file's hunks instead (ADR-0012)."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((headers nil))
+        (dolist (hunk (revu-fixture-hunk-sections "alpha.txt"))
+          (push (cdr (oref hunk value)) headers)
+          (magit-section-hide hunk))
+        (should (equal (length headers) 2))
+        (revu-fixture-two-hunk-alpha root "alpha one and a half")
+        (revu-reload)
+        (let ((hunks (revu-fixture-hunk-sections "alpha.txt")))
+          (should (equal (length hunks) 2))
+          ;; Without a changed header there is no bug here to see.
+          (should-not (equal (mapcar (lambda (h) (cdr (oref h value))) hunks)
+                             (nreverse headers)))
+          (dolist (hunk hunks)
+            (should (revu-fixture-hidden-on-screen-p hunk))))))))
+
+(ert-deftest revu-render-keeps-a-hunk-fold-when-a-filter-drops-the-hunk-above-it ()
+  "A view filter dropping a hunk leaves the fold of the hunk below it alone.
+A hunk is placed among the hunks its file was parsed with, not among the
+ones a render kept: an index over what was rendered would hand a hunk the
+fold of the hunk above it as soon as a filter dropped one."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (magit-section-hide (nth 1 (revu-fixture-hunk-sections "alpha.txt")))
+      (revu-reviewed-toggle-hide-reviewed)
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      ;; Marking the first hunk read drops it from the render.
+      (revu-reviewed-toggle)
+      (let ((hunks (revu-fixture-hunk-sections "alpha.txt")))
+        (should (equal (length hunks) 1))
+        (should (revu-fixture-hidden-on-screen-p (car hunks)))))))
+
 (ert-deftest revu-re-rendering-unchanged-state-changes-nothing ()
   "Reviewing the same Source again renders the same buffer, point and all.
 The buffer is a render of state: with the state unchanged there is

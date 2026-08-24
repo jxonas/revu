@@ -6,7 +6,7 @@ type: bug
 priority: 2
 mode: afk
 created: '2026-08-24T00:49:23.448882726Z'
-updated: '2026-08-24T01:19:12.321904581Z'
+updated: '2026-08-24T12:54:02.855727545Z'
 tags:
 - render
 - ux
@@ -19,45 +19,46 @@ acceptance:
   done: false
 - title: The column is restored along with the line
   done: false
-- title: window-start is restored, so the view does not jump when point survives
+- title: The line is restored to the height it was at, so the view does not jump when point survives
   done: false
 links:
 - dcr-01m0rkx3k23r
 - dcr-01m0rkxmpxza
 ---
 
-## Description
+## What to build
 
-Every re-render moves point to the start of the enclosing section. On a hunk, that is the hunk heading, so the reviewer loses their line on every annotate, edit, delete, Reviewed-mark toggle, filter toggle, force-write and reload.
+A re-render leaves the reviewer looking at the same line, at the same
+place on screen, that they were on before it.
 
-Reported against revu v0 QA (Doom Emacs, Emacs 30.2.50, Magit b6c5125, Transient 0.13.5, Git 2.54.0). Reproduces on both `revu-diff-range` and annotation insertion/deletion.
+Every change to a Review is a full re-render (ADR-0008), so this is on
+the path of annotate, edit, delete, a Reviewed-mark toggle, a filter
+toggle, force-write and reload. Today the render puts point at the start
+of the enclosing section, and a section starts at its heading, so the
+reviewer loses their line on every one of those.
 
-Cause is not incidental. `revu-render--restore-point` (revu-render.el:353) is written to do this:
+Reported against revu v0 QA (Doom Emacs, Emacs 30.2.50, Magit b6c5125,
+Transient 0.13.5, Git 2.54.0). Reproduces on both `revu-diff-range` and
+annotation insertion/deletion.
 
-    (let ((section (revu-render-section-with-value (car state))))
-      (if section
-          (goto-char (oref section start))
-        (goto-char (point-min))
-        (forward-line (1- (cdr state)))))
+Restore point by the strongest identity the buffer offers, in order:
 
-`revu-render--point-state` records the section value and the buffer line number; the section wins, and a section's start is its heading. The line number is only the fallback for when the section is gone.
+1. The `revu-target` under point -- path, line number and Origin. It is
+   already on every source line, and it names the line rather than where
+   the line happened to sit, so it survives the case that actually bites:
+   a re-taken diff whose hunk grew above the reviewer.
+2. The section, when point was on a heading or on a line carrying no
+   target. Find it again by its magit-section ident, not by its value: a
+   hunk's value is its header text and so changes with the content, while
+   its ident is being made stable by dcr-01m0rkx3k23r.
+3. The raw buffer line number, when the section is gone too.
 
-The docstring justifies preferring the section so a render that adds a line above does not slide the buffer out from under the reviewer. That reasoning is right; the granularity is wrong. It should put the reviewer back on the same *line*, not merely in the same section.
+Restore the column alongside the line, and put the line back at the
+height it was at, so a large buffer does not jump under a reviewer who
+kept their line. Where the height cannot be honoured -- the line is now
+too near the top of the buffer to sit that low -- put point on the line
+and let the window settle around it rather than forcing a scroll.
 
-## Design
+## Blocked by
 
-Restore point by the strongest identity available, in order:
-
-1. The `revu-target` text property under point — path, line number and Origin. It is already on every source line (revu-render.el commentary, ADR-0011), and it is stable across a re-taken diff, so it survives the case that actually bites: a hunk that grew above the reviewer.
-2. The section value, as today, when point was on a heading or on a line carrying no target.
-3. The raw buffer line number, as today, when the section is gone too.
-
-Settled with the reviewer: restore the column alongside the line, and restore `window-start` as well as point. A 3 MB buffer that jumps is as disorienting as point moving, so the reviewer should be looking at the same line at the same height after a render as before it. Where the line survives but its height cannot be preserved exactly, put point back on the line and let the window settle around it rather than forcing a scroll.
-
-Note dcr-01m0rkx3k23r (hunk section identity) degrades step 2 as long as it stands: after an edit the saved hunk value no longer matches any section, so restoration falls through to the raw line number.
-
-## Notes
-
-**2026-08-24T01:18:15.141705786Z**
-
-Left hitl: two sub-decisions in the Design section are still open — whether to restore the column as well as the line, and whether window-start should be restored so the view does not jump even when point survives. Flip to afk once those are settled.
+None - can start immediately.

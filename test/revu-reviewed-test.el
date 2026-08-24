@@ -45,27 +45,6 @@ the diff as git prints it and not from revu's own parser.")
       (walk magit-root-section))
     found))
 
-(defun revu-reviewed-test--hunk-sections (path)
-  "Return the hunk sections rendered for PATH, in render order."
-  (let ((found nil))
-    (cl-labels ((walk (section)
-                  (when (and (object-of-class-p section 'revu-hunk-section)
-                             (equal (car (oref section value)) path))
-                    (push section found))
-                  (mapc #'walk (oref section children))))
-      (walk magit-root-section))
-    (nreverse found)))
-
-(defun revu-reviewed-test--two-hunk-alpha (root)
-  "Rewrite alpha.txt in the worktree under ROOT so its diff has two hunks.
-The first and the last line change, and the six lines between them keep
-the two runs of context apart."
-  (revu-fixture-write-file
-   root "alpha.txt"
-   (thread-last revu-fixture-alpha-baseline
-                (replace-regexp-in-string "alpha one" "alpha one changed")
-                (replace-regexp-in-string "alpha ten" "alpha ten changed"))))
-
 (ert-deftest revu-reviewed-toggle-marks-the-hunk-at-point ()
   "Marking a hunk reviewed records its content digest and collapses it.
 The digest is taken over the hunk's body lines only: hunk boundaries and
@@ -79,7 +58,7 @@ The digest is taken over the hunk's body lines only: hunk boundaries and
         (should (equal (revu-mark-path (car marks)) "alpha.txt"))
         (should (equal (revu-mark-digest (car marks))
                        (revu-digest revu-reviewed-test--worktree-hunk))))
-      (let ((sections (revu-reviewed-test--hunk-sections "alpha.txt")))
+      (let ((sections (revu-fixture-hunk-sections "alpha.txt")))
         (should (equal (length sections) 1))
         (should (oref (car sections) hidden))))))
 
@@ -93,7 +72,7 @@ The digest is taken over the hunk's body lines only: hunk boundaries and
       (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (should (equal (revu-reviewed-test--marks root "worktree") nil))
-      (should-not (oref (car (revu-reviewed-test--hunk-sections "alpha.txt"))
+      (should-not (oref (car (revu-fixture-hunk-sections "alpha.txt"))
                         hidden)))))
 
 (ert-deftest revu-reviewed-editing-a-hunk-renders-it-unreviewed ()
@@ -112,7 +91,7 @@ brings the mark into force again."
        (replace-regexp-in-string "alpha four" "alpha four edited" reviewed t t))
       (revu-fixture-kill-review-buffers)
       (with-current-buffer (revu-diff-worktree "worktree")
-        (should-not (oref (car (revu-reviewed-test--hunk-sections "alpha.txt"))
+        (should-not (oref (car (revu-fixture-hunk-sections "alpha.txt"))
                           hidden))
         ;; The unmatched mark is still on disk, unpruned.
         (should (equal (length (revu-reviewed-test--marks root "worktree")) 1)))
@@ -120,7 +99,7 @@ brings the mark into force again."
       (revu-fixture-write-file root "alpha.txt" reviewed)
       (revu-fixture-kill-review-buffers)
       (with-current-buffer (revu-diff-worktree "worktree")
-        (should (oref (car (revu-reviewed-test--hunk-sections "alpha.txt"))
+        (should (oref (car (revu-fixture-hunk-sections "alpha.txt"))
                       hidden))
         (should (equal (length (revu-reviewed-test--marks root "worktree")) 1))))))
 
@@ -134,12 +113,12 @@ sees (ADR-0008)."
       (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
       (should (revu-fixture-hidden-on-screen-p
-               (car (revu-reviewed-test--hunk-sections "alpha.txt"))))
-      (goto-char (oref (car (revu-reviewed-test--hunk-sections "alpha.txt"))
+               (car (revu-fixture-hunk-sections "alpha.txt"))))
+      (goto-char (oref (car (revu-fixture-hunk-sections "alpha.txt"))
                        start))
       (revu-reviewed-toggle)
       (should-not (revu-fixture-hidden-on-screen-p
-                   (car (revu-reviewed-test--hunk-sections "alpha.txt")))))))
+                   (car (revu-fixture-hunk-sections "alpha.txt")))))))
 
 (ert-deftest revu-reviewed-mark-collapses-what-it-marks-on-a-fresh-render ()
   "A hunk read in an earlier sitting comes back collapsed on screen."
@@ -150,7 +129,7 @@ sees (ADR-0008)."
     (revu-fixture-kill-review-buffers)
     (with-current-buffer (revu-diff-worktree "worktree")
       (should (revu-fixture-hidden-on-screen-p
-               (car (revu-reviewed-test--hunk-sections "alpha.txt")))))))
+               (car (revu-fixture-hunk-sections "alpha.txt")))))))
 
 (ert-deftest revu-reviewed-toggle-leaves-other-folds-alone ()
   "Marking one hunk disturbs no fold the reviewer set, in this file or another.
@@ -159,25 +138,25 @@ it is in, because marking the last unread hunk makes the file read.  A
 hunk beside it that the reviewer folded by hand and has not read is
 neither, and stays folded."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (magit-section-hide (revu-reviewed-test--section "beta.txt"))
-      (magit-section-hide (nth 1 (revu-reviewed-test--hunk-sections "alpha.txt")))
+      (magit-section-hide (nth 1 (revu-fixture-hunk-sections "alpha.txt")))
       (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle)
       (should (revu-fixture-hidden-on-screen-p
                (revu-reviewed-test--section "beta.txt")))
       (should (revu-fixture-hidden-on-screen-p
-               (nth 1 (revu-reviewed-test--hunk-sections "alpha.txt")))))))
+               (nth 1 (revu-fixture-hunk-sections "alpha.txt")))))))
 
 (ert-deftest revu-reviewed-toggle-marks-a-file-one-hunk-at-a-time ()
   "Marking a file reviewed takes a mark per hunk, never one over the file.
 A file-level mark could go on claiming the file was read after a hunk
 under it changed; a mark per hunk cannot."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
-      (should (equal (length (revu-reviewed-test--hunk-sections "alpha.txt")) 2))
+      (should (equal (length (revu-fixture-hunk-sections "alpha.txt")) 2))
       (revu-fixture-goto-line-matching "^modified   alpha\\.txt")
       (revu-reviewed-toggle)
       (let ((marks (revu-reviewed-test--marks root "worktree")))
@@ -197,7 +176,7 @@ under it changed; a mark per hunk cannot."
 (ert-deftest revu-reviewed-file-reads-reviewed-only-when-every-hunk-matches ()
   "A file with one hunk marked and one not is not a reviewed file."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle)
@@ -209,11 +188,11 @@ under it changed; a mark per hunk cannot."
 (ert-deftest revu-reviewed-toggle-advances-to-the-next-unreviewed-hunk ()
   "Marking a hunk moves the reviewer on to the next hunk they have not read."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle)
-      (let ((sections (revu-reviewed-test--hunk-sections "alpha.txt")))
+      (let ((sections (revu-fixture-hunk-sections "alpha.txt")))
         (should (equal (length sections) 2))
         (should (= (point) (oref (nth 1 sections) start)))))))
 
@@ -224,7 +203,7 @@ so there is no section left to collapse -- but the reviewer still asked
 to be moved on, and grinding through a large Source is the whole point of
 the filter."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-reviewed-toggle-hide-reviewed)
       (unwind-protect
@@ -291,14 +270,14 @@ section again to re-read it leaves the mark on screen."
                                   (revu-fixture-render)))
       (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
       (revu-reviewed-toggle)
-      (let ((section (car (revu-reviewed-test--hunk-sections "alpha.txt"))))
+      (let ((section (car (revu-fixture-hunk-sections "alpha.txt"))))
         (should (string-suffix-p revu-render-reviewed-glyph
                                  (revu-reviewed-test--heading "^@@")))
         ;; Opening it again to re-read it keeps the badge.
         (goto-char (oref section start))
         (revu-fixture-press-tab)
         (should-not (revu-fixture-hidden-on-screen-p
-                     (car (revu-reviewed-test--hunk-sections "alpha.txt"))))
+                     (car (revu-fixture-hunk-sections "alpha.txt"))))
         (should (string-suffix-p revu-render-reviewed-glyph
                                  (revu-reviewed-test--heading "^@@")))))))
 
@@ -329,7 +308,7 @@ has stopped holding is attributed to the hunk that grew out of those
 lines and to no other.  Calling new work rework is the same lie as
 calling rework new."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle))
@@ -341,7 +320,7 @@ calling rework new."
     (revu-fixture-kill-review-buffers)
     (with-current-buffer (revu-diff-worktree "worktree")
       (let ((review (revu-review))
-            (sections (revu-reviewed-test--hunk-sections "alpha.txt")))
+            (sections (revu-fixture-hunk-sections "alpha.txt")))
         (should (equal (length sections) 2))
         (should (equal (revu-reviewed-state review revu--files
                                             (oref (nth 0 sections) value))
@@ -356,7 +335,7 @@ A Sidecar written by an older revu says which file was read and not which
 lines, so the hunk that changed cannot be told from the one beside it.
 The render says nothing rather than guessing which of them to accuse."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle))
@@ -384,7 +363,7 @@ Discovering that costs a lookup and never a digest: every hunk of a file
 asks the same question, and a Source nobody has marked yet would
 otherwise pay for hashing all of it on every render."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (cl-letf (((symbol-function 'revu-reviewed--digests)
                  (lambda (&rest _) (error "Hashed a path with no marks on it"))))
@@ -396,7 +375,7 @@ otherwise pay for hashing all of it on every render."
 Working down a large file is the case Reviewed marks exist for, and how
 many of its hunks are read is the question being asked of its heading."
   (revu-fixture-in-repo root
-    (revu-reviewed-test--two-hunk-alpha root)
+    (revu-fixture-two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (should-not (string-match-p "/" (revu-reviewed-test--heading
                                        "^modified   alpha\\.txt")))

@@ -16,6 +16,7 @@
 
 (require 'ert)
 (require 'magit-section)
+(require 'seq)
 (require 'revu)
 (require 'revu-record)
 
@@ -164,6 +165,25 @@ With CLASS, return only the sections of that class."
                        (funcall walk child)))))
       (funcall walk magit-root-section))
     (nreverse found)))
+
+(defun revu-fixture-hunk-sections (path)
+  "Return the hunk sections rendered for PATH, in render order."
+  (seq-filter (lambda (section) (equal (car (oref section value)) path))
+              (revu-fixture-sections 'revu-hunk-section)))
+
+(defun revu-fixture-two-hunk-alpha (root &optional extra)
+  "Rewrite alpha.txt in the worktree under ROOT so its diff has two hunks.
+The first and the last line change, and the six lines between them keep
+the two runs of context apart.  EXTRA, when given, is inserted as a line
+inside the first hunk, which moves every `@@' number below it without
+adding a hunk of its own."
+  (revu-fixture-write-file
+   root "alpha.txt"
+   (thread-last revu-fixture-alpha-baseline
+                (replace-regexp-in-string
+                 "alpha one\n"
+                 (concat "alpha one changed\n" (and extra (concat extra "\n"))))
+                (replace-regexp-in-string "alpha ten" "alpha ten changed"))))
 
 (defun revu-fixture-hidden-on-screen-p (section)
   "Return non-nil while the body of SECTION is invisible on screen.

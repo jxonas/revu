@@ -38,6 +38,11 @@
 ;; because magit-section's visibility cache resolves it again, not
 ;; because the old overlay was left alone -- there is no old buffer.
 ;;
+;; That cache is keyed on a section's identity, and a hunk's identity for
+;; this purpose is where it sits among its file's hunks, never its header
+;; text: the header is derived from content, so keying a fold on it loses
+;; the fold on exactly the edit reload exists to show (ADR-0012).
+;;
 ;; A heading carries the Reviewed state of what it opens, as a glyph the
 ;; render is handed rather than derives: `revu-reviewed.el' decides, this
 ;; file draws.  The glyph is heading text and not a fold, so it survives
@@ -120,8 +125,21 @@ new work."
 (defclass revu-file-section (magit-section) ()
   "The section holding one file of the Source under review.")
 
-(defclass revu-hunk-section (magit-section) ()
-  "The section holding one hunk of a file under review.")
+(defclass revu-hunk-section (magit-section)
+  ((index :initarg :index :initform nil))
+  "The section holding one hunk of a file under review.
+INDEX is the hunk's ordinal position among the hunks its file was parsed
+with, and is the hunk's identity to magit-section rather than its value
+\(ADR-0012).")
+
+(cl-defmethod magit-section-ident-value ((section revu-hunk-section))
+  "Return the identity magit-section correlates SECTION by across renders.
+A hunk carries two identities and they want opposite properties: its
+value names the content, which is what un-matches a Reviewed mark once
+the content changes (ADR-0009), and this names the position, which is
+what keeps a fold across the very edit reload exists to show (ADR-0012).
+The visibility cache is keyed on this one."
+  (cons (car (oref section value)) (oref section index)))
 
 (defclass revu-annotation-section (magit-section) ()
   "The section holding one Annotation.
@@ -384,13 +402,20 @@ failing that the same line, held it before."
                (width (revu-render--number-width file))
                (mine (revu-render--placements-on placements path))
                (plain (revu-diff-file-plain file))
+               ;; A hunk is numbered among the hunks its file was parsed
+               ;; with, before the filters drop any: an index over what was
+               ;; rendered would renumber every hunk below a dropped one and
+               ;; hand its fold to a different hunk (ADR-0012).
                (hunks (seq-filter
-                       (lambda (hunk)
-                         (or plain (null keep-p)
-                             (funcall keep-p
-                                      (cons path (revu-diff-hunk-header hunk))
-                                      (revu-render--annotated-p mine hunk))))
-                       (revu-diff-file-hunks file))))
+                       (lambda (numbered)
+                         (let ((hunk (cdr numbered)))
+                           (or plain (null keep-p)
+                               (funcall keep-p
+                                        (cons path (revu-diff-hunk-header hunk))
+                                        (revu-render--annotated-p mine hunk)))))
+                       (seq-map-indexed (lambda (hunk index)
+                                          (cons index hunk))
+                                        (revu-diff-file-hunks file)))))
           (when (or (null keep-p) (funcall keep-p path (and mine t)))
             (magit-insert-section (revu-file-section
                                    path
@@ -401,7 +426,7 @@ failing that the same line, held it before."
                                       (and state-p (funcall state-p path))))
               (dolist (placement (revu-render--unplaced mine file))
                 (revu-render-annotation placement))
-              (dolist (hunk hunks)
+              (pcase-dolist (`(,index . ,hunk) hunks)
                 ;; A plain file is the diff render minus the hunk split: its
                 ;; lines sit flat under the one file section (ADR-0011).
                 (if plain
@@ -410,7 +435,8 @@ failing that the same line, held it before."
                     (magit-insert-section (revu-hunk-section
                                            value
                                            (and hidden-p
-                                                (funcall hidden-p value)))
+                                                (funcall hidden-p value))
+                                           :index index)
                       (magit-insert-heading
                         (revu-render--heading (revu-diff-hunk-header hunk)
                                               'revu-hunk-heading
