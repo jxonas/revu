@@ -131,22 +131,37 @@ derived Review name carries."
   (revu-fixture-with-repo root
     (let ((default-directory root))
       (should (equal (revu-magit-plan nil nil nil 'unstaged)
-                     '(revu-diff-worktree nil nil)))
+                     '(revu-diff-worktree nil nil nil)))
       (should (seq-find (lambda (note)
                           (string-match-p "worktree" note))
                         (revu-magit--caveats nil 'unstaged))))))
 
 (ert-deftest revu-magit-reviews-a-lone-revision-as-the-worktree ()
-  "`d w' diffs the worktree against HEAD, and so does revu."
+  "`d w' diffs the worktree against a revision, and so does revu.
+No revision, and one naming the commit HEAD names, are the worktree
+Review against HEAD: the Review of what is about to be committed stays
+one Review while that branch is checked out."
   (revu-fixture-with-repo root
     (let ((default-directory root))
       (should (equal (revu-magit-plan "HEAD" nil nil 'committed)
-                     '(revu-diff-worktree nil nil)))
+                     '(revu-diff-worktree nil nil nil)))
       (should (equal (revu-magit-plan "main" nil nil 'committed)
-                     '(revu-diff-worktree nil nil)))
-      ;; The worktree against anything else is not a Source revu has.
-      (should (equal (car (revu-magit-plan "feature" nil nil 'committed))
-                     'refuse))
+                     '(revu-diff-worktree nil nil nil)))
+      ;; The worktree against anything else is a Source of its own, named
+      ;; after the revision as magit read it.
+      (should (equal (revu-magit-plan "feature" nil nil 'committed)
+                     '(revu-diff-worktree "feature" nil nil)))
+      ;; A prefix argument on `d w' arrives as an unstaged diff with a
+      ;; revision on it, and reviews the worktree against that revision.
+      (should (equal (revu-magit-plan "feature" nil nil 'unstaged)
+                     '(revu-diff-worktree "feature" nil nil)))
+      ;; An object id is shortened the way magit's own log shows it.
+      (should (equal (revu-magit-plan (revu-magit-test--commit root "feature")
+                                      nil nil 'committed)
+                     (list 'revu-diff-worktree
+                           (revu-magit-test--short root "feature")
+                           nil nil)))
+      ;; A revision naming nothing is refused, not reviewed as HEAD.
       (should (equal (car (revu-magit-plan "no-such-thing" nil nil 'committed))
                      'refuse)))))
 
@@ -163,7 +178,7 @@ derived Review name carries."
       (should (equal (revu-magit-plan nil "--cached" files 'staged)
                      '(revu-diff-staged nil ("alpha.txt" "docs/"))))
       (should (equal (revu-magit-plan nil nil files 'unstaged)
-                     '(revu-diff-worktree nil ("alpha.txt" "docs/"))))
+                     '(revu-diff-worktree nil nil ("alpha.txt" "docs/"))))
       (should (equal (revu-magit-revision-plan "feature" files)
                      (list 'revu-diff-range
                            (revu-magit-test--short root "feature^")

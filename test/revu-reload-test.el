@@ -70,7 +70,7 @@ on LINE of Origin ORIGIN of alpha.txt, the changed line by default."
 (defun revu-reload-test--open-worktree (root)
   "Open the worktree Review of ROOT with one question on a line of it.
 Return the review buffer, with point left on the annotated line."
-  (let ((buffer (revu-diff-worktree "worktree")))
+  (let ((buffer (revu-diff-worktree nil "worktree")))
     (with-current-buffer buffer
       (revu-fixture-goto-line-matching "alpha seven in the worktree")
       (revu-annotate-line "question" "Why this line?"))
@@ -283,6 +283,32 @@ line, not on the row, and the reload leaves them there."
                                  (line-end-position))))
         ;; The line is where it was; the row it sits on is not.
         (should (> (line-number-at-pos) row))))))
+
+(ert-deftest revu-reload-replays-the-base-a-worktree-review-was-taken-against ()
+  "A worktree Review against a Revision reads its Source again the same way.
+The recorded base is what the diff is taken against on reload, and what a
+line the diff removed is re-located in: that line is in no file on disk,
+and only the base's blob still has it (ADR-0003)."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "feature")
+      (revu-fixture-goto-line-matching "^-alpha three on feature$")
+      (revu-annotate-line "question" "Why is this gone?")
+      (let* ((annotation (seq-elt (revu-review-annotations
+                                   (revu-fixture-sidecar
+                                    root "worktree-vs-feature"))
+                                  0))
+             (anchor (revu-annotation-anchor annotation)))
+        (should (equal (revu-anchor-line anchor) "alpha three on feature"))
+        ;; The fixture trims what git printed; the blob ends in a newline.
+        (should (equal (revu-anchor-digest anchor)
+                       (revu-digest (concat (revu-fixture-git-output
+                                             root "show" "feature:alpha.txt")
+                                            "\n")))))
+      (revu-reload)
+      (let ((text (revu-fixture-render)))
+        ;; The diff is taken against `feature' again, not against HEAD.
+        (should (string-match-p "-alpha three on feature" text))
+        (should (string-match-p "question \\[fresh\\]" text))))))
 
 (provide 'revu-reload-test)
 ;;; revu-reload-test.el ends here

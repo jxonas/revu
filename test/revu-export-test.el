@@ -42,7 +42,7 @@ that is every `## ' line the Export writes without escaping it."
 The four shapes are the whole of what revdiff's parser accepts for a
 single line, and the file-level record sorts first."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^modified   beta\\.txt$")
       (revu-annotate-file "note" "About the whole file")
       (revu-fixture-goto-line-matching "^ beta one$")
@@ -73,7 +73,7 @@ there either way."
                    `(("off" nil "^\\+beta two staged$")
                      ("on" t "^ +2 \\+beta two staged$")))
       (let ((revu-line-numbers numbers))
-        (with-current-buffer (revu-diff-worktree name)
+        (with-current-buffer (revu-diff-worktree nil name)
           (revu-fixture-goto-line-matching line)
           (revu-annotate-line "note" "On the added line")
           (revu-export))))
@@ -94,7 +94,7 @@ so it picks the lines the reviewer is being asked to accept."
       (replace-regexp-in-string "alpha six" "alpha six rewritten"
                                 revu-fixture-alpha-baseline t t)
       t t))
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha six rewritten$")
       (revu-annotate-hunk "note" "The whole replacement")
       (revu-export))
@@ -108,7 +108,7 @@ so it picks the lines the reviewer is being asked to accept."
     (revu-fixture-write-file
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\nadded five\n")
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-hunk "note" "Two new lines")
       (revu-export))
@@ -119,7 +119,7 @@ so it picks the lines the reviewer is being asked to accept."
 (ert-deftest revu-export-writes-a-deletion-only-hunk-over-its-removed-lines ()
   "A hunk with nothing added exports over what it removed, in old numbers."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^-gamma one$")
       (revu-annotate-hunk "note" "Why did this go?")
       (revu-export))
@@ -131,7 +131,7 @@ so it picks the lines the reviewer is being asked to accept."
   "A range that covers one line says so as a single line, not as `N-N'.
 That is what revdiff's own writer does, and the parser reads either."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-hunk "note" "One line changed")
       (revu-export))
@@ -148,7 +148,7 @@ The merged record keeps the widest range either of them drew."
     (revu-fixture-write-file
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\nadded five\n")
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-hunk "note" "About both new lines")
       (revu-fixture-goto-line-matching "^\\+added four$")
@@ -166,7 +166,7 @@ The merged record keeps the widest range either of them drew."
 The format has nowhere to put a Kind, so a `question' carries its own
 mark, and it has to survive being concatenated with a `note'."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Reads fine")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
@@ -185,7 +185,7 @@ mark, and it has to survive being concatenated with a `note'."
     (revu-fixture-write-file
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\nadded five\n")
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+added four$")
       (revu-annotate-hunk "note" "About the new lines")
       (revu-fixture-write-file root "README.md" "nothing\nof\nit\nis\nleft\n")
@@ -200,7 +200,7 @@ It is dropped rather than smuggled in under a path that does not exist,
 and the count is said out loud so the reviewer knows what did not go."
   (revu-fixture-in-repo root
     (let (echoed)
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-annotate-review "note" "The change reads well overall")
         (revu-annotate-review "question" "Is this the right branch?")
         (revu-fixture-goto-line-matching "^\\+beta two staged$")
@@ -219,7 +219,7 @@ and the count is said out loud so the reviewer knows what did not go."
 Every revdiff plugin reads empty as a review with nothing to say, and a
 Review holding nothing but Annotations on itself is exactly that."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should-not (revu-export))
       (revu-annotate-review "note" "Nothing revdiff can carry")
       (should-not (revu-export)))
@@ -233,7 +233,7 @@ travels with the handoff instead -- and not onto the kill ring, which
 carries the path and the contract and nothing else."
   (revu-fixture-in-repo root
     (let (echoed)
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-annotate-review "note" "Says nothing about a file")
         (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Kept")
@@ -254,7 +254,7 @@ An empty Export is no file at all, so a file left over from a fuller
 Review is feedback the reviewer has withdrawn -- and an agent handed that
 path would act on it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "change" "Say this differently")
       (should (revu-export))
@@ -271,7 +271,7 @@ Only that exact shape moves; a deeper heading, a bare hash and a hash in
 the middle of a line are the reviewer's words and go out as written.
 Trailing blank lines go, which is what revdiff's editor does to them."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line
        "note"
@@ -291,7 +291,7 @@ Trailing blank lines go, which is what revdiff's editor does to them."
 The `??' revdiff's plugins classify on is written in, unless the
 reviewer's words already carry it or open with a word that asks."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^modified   beta\\.txt$")
       (revu-annotate-file "note" "plain")
       (revu-fixture-goto-line-matching "^ beta one$")
@@ -317,7 +317,7 @@ reviewer's words already carry it or open with a word that asks."
 The Sidecar keeps the path the Target was recorded under; the agent
 reading the Export has only today's files to act on."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Still the same line")
       (revu-fixture-git-output root "mv" "beta.txt" "beta-renamed.txt")
@@ -329,7 +329,7 @@ reading the Export has only today's files to act on."
 (ert-deftest revu-export-writes-the-line-an-anchor-was-re-found-on ()
   "A line that moved exports where it is now, not where it was recorded."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "About seven")
       (revu-fixture-write-file
@@ -346,7 +346,7 @@ reading the Export has only today's files to act on."
 The body still says what the reviewer meant, and revdiff never checks
 that the line is there."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "About seven")
       (revu-fixture-write-file root "alpha.txt"
@@ -362,7 +362,7 @@ that the line is there."
     (revu-fixture-write-file
      root "README.md"
      "# Fixture\n\nUntouched by any diff.\nadded four\n")
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^-gamma one$")
       (revu-annotate-line "note" "On gamma")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
@@ -381,7 +381,7 @@ that the line is there."
 (ert-deftest revu-export-ignores-what-the-reviewer-has-marked-reviewed ()
   "A Reviewed mark is the reviewer's own bookkeeping and never leaves revu."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Read and understood")
       (revu-fixture-goto-line-matching "^@@ -1,3 \\+1,3 @@")
@@ -397,7 +397,7 @@ that the line is there."
   "A destination other than the one beside the Sidecar is written instead."
   (revu-fixture-in-repo root
     (let ((elsewhere (expand-file-name "handoff.md" root)))
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Somewhere else")
         (should (equal (revu-export elsewhere) elsewhere)))
@@ -413,7 +413,7 @@ The path alone is what breaks a Sidecar: an agent that was never told
 the rules invents its own."
   (revu-fixture-in-repo root
     (let (echoed)
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Something to hand over")
         (setq echoed (ert-with-message-capture messages
@@ -431,7 +431,7 @@ the rules invents its own."
 (ert-deftest revu-sidecar-path-hands-the-agent-the-sidecar-and-the-contract ()
   "The Sidecar is handed over the same way, path and contract together."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-sidecar-path))
     (should (equal (current-kill 0)
                    (concat (expand-file-name ".revu/reviews/worktree.json" root)
@@ -444,7 +444,7 @@ the rules invents its own."
 It is the sink for the pull request or the chat, so what lands there is
 what `revu-export' would have written -- and nothing is written."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Copied, not filed")
       (let ((kill-ring nil) (kill-ring-yank-pointer nil))
@@ -457,7 +457,7 @@ what `revu-export' would have written -- and nothing is written."
 (ert-deftest revu-export-kill-renders-what-the-file-export-renders ()
   "One rendering, two sinks: the copy and the file cannot drift apart."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^modified   beta\\.txt$")
       (revu-annotate-file "question" "Why here?")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
@@ -471,7 +471,7 @@ what `revu-export' would have written -- and nothing is written."
 (ert-deftest revu-export-kill-copies-nothing-from-a-review-with-nothing-to-say ()
   "An empty rendering leaves the kill ring alone rather than blanking it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let ((kill-ring (list "what the reviewer had before"))
             (kill-ring-yank-pointer nil))
         (should-not (revu-export-kill))
@@ -480,7 +480,7 @@ what `revu-export' would have written -- and nothing is written."
 (ert-deftest revu-export-kill-says-what-it-dropped ()
   "An Annotation on the Review has no record here either, and is counted out."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-annotate-review "note" "About the whole thing")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "About a line")

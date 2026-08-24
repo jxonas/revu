@@ -18,7 +18,7 @@
 (ert-deftest revu-worktree-command-opens-a-review-buffer-over-the-worktree-diff ()
   "`revu-diff-worktree' renders the unstaged changes in a review buffer."
   (revu-fixture-in-repo root
-    (let ((buffer (revu-diff-worktree "worktree")))
+    (let ((buffer (revu-diff-worktree nil "worktree")))
       (should (buffer-live-p buffer))
       (should (equal (buffer-name buffer) "*revu: worktree*"))
       (with-current-buffer buffer
@@ -62,7 +62,7 @@ Every rendered line carries content; a numbered blank at the end of a
 hunk would be a line the reviewer could annotate and the file does not
 have."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should-not (string-match-p "^ *[0-9]+ *$" (revu-fixture-render))))))
 
 (ert-deftest revu-range-command-renders-the-diff-between-two-revisions ()
@@ -94,7 +94,7 @@ different numbers."
                   (replace-regexp-in-string "alpha two\n" "")
                   (replace-regexp-in-string "alpha eight" "alpha eight edited")))
     (let ((revu-line-numbers t))
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (let ((text (revu-fixture-render)))
           ;; "alpha two" is line 2 of the old file and is in no new file.
           (should (string-match-p "^ +2 -alpha two$" text))
@@ -111,7 +111,7 @@ The default is off: the reviewer reads the diff, and asks for the numbers
 only when they are going to quote them at an agent (ADR-0011)."
   (revu-fixture-in-repo root
     (should-not revu-line-numbers)
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let ((text (revu-fixture-render)))
         (should (string-match-p "^\\+alpha seven in the worktree$" text))
         (should (string-match-p "^-alpha seven$" text))
@@ -122,12 +122,12 @@ only when they are going to quote them at an agent (ADR-0011)."
 The number lives in the `revu-target' property, so what a command reads
 off the line does not depend on the prefix being drawn."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (let ((target (get-text-property (line-beginning-position) 'revu-target)))
         (should (equal target (list "alpha.txt" 7 "added")))))
     (let ((revu-line-numbers t))
-      (with-current-buffer (revu-diff-worktree "numbered")
+      (with-current-buffer (revu-diff-worktree nil "numbered")
         (revu-fixture-goto-line-matching "\\+alpha seven in the worktree$")
         (should (equal (get-text-property (line-beginning-position) 'revu-target)
                        (list "alpha.txt" 7 "added")))))))
@@ -147,7 +147,7 @@ off the line does not depend on the prefix being drawn."
 (ert-deftest revu-tab-folds-a-file-and-a-hunk ()
   "TAB on a file or a hunk hides what is under it, and shows it again."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let* ((file (car (revu-fixture-sections 'revu-file-section)))
              (hunk (car (revu-fixture-sections 'revu-hunk-section)))
              (first-line (save-excursion
@@ -172,7 +172,7 @@ resolves the visibility of every section it builds, but only an invisible
 overlay hides anything, and the slot alone leaves the buffer expanded
 \(ADR-0008)."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let ((file (car (revu-fixture-sections 'revu-file-section))))
         (magit-section-hide file)
         (should (revu-fixture-hidden-on-screen-p file))
@@ -190,7 +190,7 @@ overlay hides anything, and the slot alone leaves the buffer expanded
 once, and it takes a different route to the same visibility than folding
 one section does."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (magit-section-cycle-global)
       ;; A rename that changed nothing has no body to hide, and nothing to
       ;; say about whether a fold held.
@@ -214,7 +214,7 @@ reviewer asked for.  A hunk's fold is keyed on its position among its
 file's hunks instead (ADR-0012)."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let ((headers nil))
         (dolist (hunk (revu-fixture-hunk-sections "alpha.txt"))
           (push (cdr (oref hunk value)) headers)
@@ -238,7 +238,7 @@ turned it off for magit would lose every fold in a review buffer, so
 `revu-mode' binds it buffer-locally."
   (revu-fixture-in-repo root
     (let ((magit-section-cache-visibility nil))
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-fixture-fold-outlives (revu-reload))))))
 
 (ert-deftest revu-render-keeps-a-fold-when-magit-caches-other-section-types ()
@@ -248,7 +248,7 @@ a boolean, so a value naming magit's own types excludes revu's without
 the reviewer ever intending to."
   (revu-fixture-in-repo root
     (let ((magit-section-cache-visibility '(file hunk)))
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-fixture-fold-outlives (revu-reload))))))
 
 (ert-deftest revu-render-keeps-a-fold-when-magit-preserves-no-visibility ()
@@ -263,7 +263,7 @@ a section the filter dropped is in no previous tree: coming back folded
 is the cache and nothing else."
   (revu-fixture-in-repo root
     (let ((magit-section-preserve-visibility nil))
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-fixture-fold-outlives
          (revu-reviewed-toggle-annotated-only)
          (should-not (revu-fixture-sections 'revu-file-section))
@@ -277,7 +277,7 @@ a global assignment."
   (revu-fixture-in-repo root
     (let ((magit-section-cache-visibility nil)
           (magit-section-preserve-visibility nil))
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (should (eq magit-section-cache-visibility t))
         (should (eq magit-section-preserve-visibility t)))
       (should-not magit-section-cache-visibility)
@@ -292,7 +292,7 @@ ones a render kept: an index over what was rendered would hand a hunk the
 fold of the hunk above it as soon as a filter dropped one."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (magit-section-hide (nth 1 (revu-fixture-hunk-sections "alpha.txt")))
       (revu-reviewed-toggle-hide-reviewed)
       (revu-fixture-goto-line-matching "^\\+alpha one changed$")
@@ -307,7 +307,7 @@ fold of the hunk above it as soon as a filter dropped one."
 The buffer is a render of state: with the state unchanged there is
 nothing for a second render to say differently."
   (revu-fixture-in-repo root
-    (let ((buffer (revu-diff-worktree "worktree"))
+    (let ((buffer (revu-diff-worktree nil "worktree"))
           (before nil)
           (section nil))
       (with-current-buffer buffer
@@ -315,7 +315,7 @@ nothing for a second render to say differently."
                          start))
         (setq before (buffer-substring (point-min) (point-max))
               section (oref (magit-current-section) value)))
-      (should (eq (revu-diff-worktree "worktree") buffer))
+      (should (eq (revu-diff-worktree nil "worktree") buffer))
       (with-current-buffer buffer
         (should (equal (buffer-substring (point-min) (point-max)) before))
         (should (equal (oref (magit-current-section) value) section))
@@ -389,7 +389,7 @@ That is what the reviewer reading before a commit is asking for, and it
 is what makes the Revision the Review records the one the diff was taken
 against -- which is what re-locates a removed line later (ADR-0003)."
   (revu-fixture-in-repo root
-    (revu-diff-worktree "worktree")
+    (revu-diff-worktree nil "worktree")
     (let ((rendered (with-current-buffer "*revu: worktree*"
                       (revu-fixture-render))))
       ;; The fixture stages one change and leaves another unstaged.
@@ -398,6 +398,60 @@ against -- which is what re-locates a removed line later (ADR-0003)."
     (let ((source (revu-review-source (revu-fixture-sidecar root "worktree"))))
       (should (equal (revu-source-base source)
                      (revu-fixture-git-output root "rev-parse" "HEAD"))))))
+
+(ert-deftest revu-worktree-command-takes-a-base-revision ()
+  "The worktree may be reviewed against any Revision, not only HEAD.
+The diff is the one `git diff <revision>' takes -- everything the
+worktree carries that the Revision does not -- and the Source records the
+commit the Revision resolved to, so the Review can be read again."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "feature")
+      (should (equal (buffer-name) "*revu: worktree-vs-feature*"))
+      (let ((text (revu-fixture-render)))
+        ;; The branch's own change is not in the worktree, so it reads
+        ;; as removed; the worktree's own change is still added.
+        (should (string-match-p "-alpha three on feature" text))
+        (should (string-match-p "\\+alpha seven in the worktree" text))))
+    (let ((source (revu-review-source
+                   (revu-fixture-sidecar root "worktree-vs-feature"))))
+      (should (equal (revu-source-kind source) "worktree"))
+      (should (equal (revu-source-base source)
+                     (revu-fixture-git-output root "rev-parse" "feature"))))))
+
+(ert-deftest revu-worktree-command-keeps-the-head-review-out-of-it ()
+  "The worktree against HEAD and against a Revision are two Reviews.
+The HEAD Review must not fork as HEAD moves, and a Review taken against
+something else must not resume it under the wrong Annotations."
+  (revu-fixture-in-repo root
+    (revu-diff-worktree)
+    (revu-diff-worktree "feature")
+    (should (revu-fixture-sidecar root "worktree"))
+    (should (revu-fixture-sidecar root "worktree-vs-feature"))
+    ;; The Review of the worktree against HEAD is called `worktree'
+    ;; whatever commit HEAD is on.
+    (should (equal (revu-review-name (revu-fixture-sidecar root "worktree"))
+                   "worktree"))
+    (should (equal (revu-source-base
+                    (revu-review-source (revu-fixture-sidecar root "worktree")))
+                   (revu-fixture-git-output root "rev-parse" "HEAD")))))
+
+(ert-deftest revu-worktree-command-reads-a-base-naming-head-as-head ()
+  "A base that names the commit HEAD names is the worktree Review of HEAD.
+The branch that is checked out is HEAD, and reviewing the worktree
+against it by name is the same Source: it opens the one Review of what
+is about to be committed rather than a second one beside it."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "main")
+      (should (equal (buffer-name) "*revu: worktree*")))
+    (should-not (revu-fixture-sidecar root "worktree-vs-main"))))
+
+(ert-deftest revu-worktree-command-refuses-a-revision-naming-nothing ()
+  "A base that names no commit is refused, not guessed at."
+  (revu-fixture-in-repo root
+    (let ((message (cadr (should-error (revu-diff-worktree "no-such-thing")
+                                       :type 'user-error))))
+      (should (string-match-p "no-such-thing" message)))
+    (should-not (revu-fixture-sidecar root "worktree-vs-no-such-thing"))))
 
 (ert-deftest revu-entry-commands-open-on-the-derived-name-without-a-prompt ()
   "An entry command asked for no name opens on the derived one, silently."
@@ -446,7 +500,7 @@ prefix argument means whatever magit read it as."
       (make-directory (expand-file-name ".revu/reviews" root) t)
       (with-temp-file (expand-file-name ".revu/reviews/worktree.json" root)
         (insert (revu-review-encode review))))
-    (revu-diff-worktree "worktree")
+    (revu-diff-worktree nil "worktree")
     (let ((annotations (revu-review-annotations
                         (revu-fixture-sidecar root "worktree"))))
       (should (equal (seq-length annotations) 1))
@@ -459,7 +513,7 @@ The line is named by the `revu-target' it carries, not by where it sat:
 the Annotation this render adds is inserted under that very line, so a
 buffer line number would already be wrong for the lines below it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
       (move-to-column 12)
       (revu-annotate-line "question" "Why this line?")
@@ -475,7 +529,7 @@ The target is gone, so the section it was under is the strongest thing
 left; the reviewer lands where their line used to be rather than at the
 top of the buffer."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
       ;; The worktree changes elsewhere, so line seven is not in the diff.
       (revu-fixture-write-file
@@ -491,7 +545,7 @@ top of the buffer."
 (ert-deftest revu-render-puts-the-line-back-at-the-height-it-was-at ()
   "A restored line comes back at the screen row it was on, so the view holds."
   (revu-fixture-in-repo root
-    (let ((buffer (revu-diff-worktree "worktree")))
+    (let ((buffer (revu-diff-worktree nil "worktree")))
       (set-window-buffer (selected-window) buffer)
       (with-current-buffer buffer
         (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
@@ -510,7 +564,7 @@ whole file skipped.  The fold itself is left exactly as it was: it is the
 reviewer's own."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let ((file (car (revu-fixture-sections 'revu-file-section)))
             (hunk (revu-fixture-hunk-section "alpha.txt" 1)))
         (should (equal (revu-render-heading-position (oref hunk value))
@@ -533,7 +587,7 @@ back on the folded line first -- that is the position this render has to
 decide about."
   (revu-fixture-in-repo root
     (revu-fixture-two-hunk-alpha root)
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle)
       (revu-fixture-goto-line-matching "^\\+alpha one changed$")
@@ -548,7 +602,7 @@ decide about."
 A removed line is named under the path the file had before the diff
 renamed it, so its Target is not the one the lines around it carry."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^-alpha seven$")
       (revu-annotate-line "note" "This is what it said before.")
       (should (string-match-p "^-alpha seven$"
@@ -559,7 +613,7 @@ renamed it, so its Target is not the one the lines around it carry."
 (ert-deftest revu-render-highlight-leaves-a-hunk-line-its-own-face ()
   "Point in a hunk covers its heading only, so the lines keep their Origin."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-put-point-on-and-highlight
        revu-fixture-worktree-seven)
       (should (eq (revu-fixture-face-on-screen "\\+alpha seven in the worktree")
@@ -571,7 +625,7 @@ renamed it, so its Target is not the one the lines around it carry."
   "The affordance survives: the heading of the section under point is lit.
 Point is on a body line, where a reviewer reading a hunk holds it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-put-point-on-and-highlight
        revu-fixture-worktree-seven)
       (should (eq (revu-fixture-face-on-screen "^@@")
@@ -580,7 +634,7 @@ Point is on a body line, where a reviewer reading a hunk holds it."
 (ert-deftest revu-render-highlight-leaves-a-file-s-lines-their-own-face ()
   "Point on a file heading covers that heading only, not the hunks under it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-put-point-on-and-highlight "^modified +alpha\\.txt$")
       (should (eq (revu-fixture-face-on-screen "^modified +alpha\\.txt$")
                   'magit-section-highlight))

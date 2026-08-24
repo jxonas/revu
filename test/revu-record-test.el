@@ -242,6 +242,27 @@ Sidecar it sits in is refused whole, like any other."
   (should (equal (revu-review-name-for-source (revu-source-file "src/alpha.txt"))
                  "file-src-alpha.txt")))
 
+(ert-deftest revu-review-name-tells-a-worktree-base-apart ()
+  "A worktree taken against a Revision is its own Review, HEAD keeps its own.
+The name of the worktree against HEAD ignores the commit, so the Review
+does not fork every time HEAD moves; a worktree against anything else
+carries the Revision as the reviewer named it, so it never resumes that
+Review by mistake."
+  (should (equal (revu-review-name-for-source (revu-source-worktree nil))
+                 "worktree"))
+  (should (equal (revu-review-name-for-source (revu-source-worktree "HEAD"))
+                 "worktree"))
+  (should (equal (revu-review-name-for-source
+                  (revu-source-worktree "qa-2026-08-17"))
+                 "worktree-vs-qa-2026-08-17"))
+  (should (equal (revu-review-name-for-source
+                  (revu-source-worktree "topic/one"))
+                 "worktree-vs-topic-one"))
+  (should-not (equal (revu-review-name-for-source
+                      (revu-source-worktree "qa-2026-08-17"))
+                     (revu-review-name-for-source
+                      (revu-source-worktree nil)))))
+
 (defun revu-record-test--refusal (file text)
   "Write TEXT to FILE, load it expecting a refusal, and return the message."
   (write-region text nil file nil 'silent)

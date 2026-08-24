@@ -109,7 +109,7 @@ This is the mechanism the timing test measures, asserted where noise
 cannot hide it: a marker stays in the buffer after the render that made
 it is gone, and every later insertion pays to move it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (let ((sections (revu-fixture-sections)))
         (should sections)
         (dolist (section sections)

@@ -48,14 +48,14 @@ write guard blocks on."
 (ert-deftest revu-resuming-a-review-echoes-what-it-picked-up ()
   "Opening a Review that carries Annotations says how many, and how many orphaned."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Still here tomorrow")
       (revu-fixture-goto-line-matching "^ beta one$")
       (revu-annotate-line "note" "And this one"))
     (revu-fixture-kill-review-buffers)
     (let ((echoed (ert-with-message-capture messages
-                    (revu-diff-worktree "worktree")
+                    (revu-diff-worktree nil "worktree")
                     messages)))
       (should (string-match-p "Resumed worktree: 2 Annotations (0 orphaned)"
                               echoed)))))
@@ -63,13 +63,13 @@ write guard blocks on."
 (ert-deftest revu-resuming-a-review-counts-the-annotations-it-lost ()
   "An Annotation whose lines are gone is counted as orphaned in the echo."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "About to be lost"))
     (revu-fixture-kill-review-buffers)
     (revu-fixture-write-file root "beta.txt" "nothing like what it was\n")
     (let ((echoed (ert-with-message-capture messages
-                    (revu-diff-worktree "worktree")
+                    (revu-diff-worktree nil "worktree")
                     messages)))
       (should (string-match-p "Resumed worktree: 1 Annotation (1 orphaned)"
                               echoed)))))
@@ -77,10 +77,10 @@ write guard blocks on."
 (ert-deftest revu-opening-an-empty-review-says-nothing ()
   "A Review with nothing in it resumes silently: there is nothing to warn of."
   (revu-fixture-in-repo root
-    (save-current-buffer (revu-diff-worktree "worktree"))
+    (save-current-buffer (revu-diff-worktree nil "worktree"))
     (revu-fixture-kill-review-buffers)
     (let ((echoed (ert-with-message-capture messages
-                    (revu-diff-worktree "worktree")
+                    (revu-diff-worktree nil "worktree")
                     messages)))
       (should-not (string-match-p "Resumed" echoed)))))
 
@@ -89,7 +89,7 @@ write guard blocks on."
 (ert-deftest revu-rename-moves-the-sidecar-the-export-and-the-buffer ()
   "A Review kept is renamed whole: both files move and the buffer follows."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-review-test--annotate-and-export "^\\+beta two staged$" "Worth keeping")
       (should (file-exists-p (revu-review-test--export-file root "worktree")))
       (revu-rename "beta-rework")
@@ -105,7 +105,7 @@ write guard blocks on."
 (ert-deftest revu-rename-keeps-annotating-under-the-new-name ()
   "The renamed buffer writes to the Sidecar that moved, not the one that left."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-rename "beta-rework")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Written after the rename"))
@@ -118,7 +118,7 @@ write guard blocks on."
   "Renaming never writes over the Review already under that name."
   (revu-fixture-in-repo root
     (save-current-buffer (revu-diff-staged "staged"))
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should-error (revu-rename "staged") :type 'user-error))
     (should (file-exists-p (revu-review-test--sidecar-file root "worktree")))
     (should (equal (revu-source-kind
@@ -128,7 +128,7 @@ write guard blocks on."
 (ert-deftest revu-rename-refuses-a-name-that-is-a-path ()
   "A name is a file name under `reviews/', never a way out of it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should-error (revu-rename "../escaped") :type 'user-error)
       (should-error (revu-rename "") :type 'user-error)
       (should (equal (revu-review-name (revu-review)) "worktree")))
@@ -140,7 +140,7 @@ write guard blocks on."
     (let ((stray (revu-review-test--export-file root "beta-rework")))
       (make-directory (file-name-directory stray) t)
       (write-region "left behind\n" nil stray nil 'silent)
-      (with-current-buffer (revu-diff-worktree "worktree")
+      (with-current-buffer (revu-diff-worktree nil "worktree")
         (revu-review-test--annotate-and-export "^\\+beta two staged$" "Mine")
         (should-error (revu-rename "beta-rework") :type 'user-error))
       (should (equal (revu-fixture-file-contents
@@ -152,7 +152,7 @@ write guard blocks on."
 (ert-deftest revu-rename-refuses-under-the-write-guard ()
   "A Sidecar an agent wrote to since revu read it is not moved out from under it."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+beta two staged$")
       (revu-annotate-line "note" "Mine")
       (revu-review-test--touch-sidecar root "worktree")
@@ -166,7 +166,7 @@ write guard blocks on."
   "Every Review on disk is offered, most recently updated first."
   (revu-fixture-in-repo root
     (save-current-buffer (revu-diff-staged "staged"))
-    (save-current-buffer (revu-diff-worktree "worktree"))
+    (save-current-buffer (revu-diff-worktree nil "worktree"))
     (with-current-buffer (revu-buffer-name "worktree")
       (revu-rename "beta-rework"))
     (let (offered scratch)
@@ -189,6 +189,32 @@ write guard blocks on."
       (should (equal scratch '("staged"))))
     (should (get-buffer (revu-buffer-name "staged")))))
 
+(ert-deftest revu-open-marks-a-worktree-review-as-the-scratch-bucket ()
+  "The worktree Review is scratch, and stays so as HEAD moves.
+Its name is `worktree' whatever commit the record holds, so it is
+recognisable after the fact.  A worktree Review taken against another
+Revision reads as named, exactly as a Review over a range does: it was
+named after the Revision as it was typed and the record holds the commit
+that resolved to."
+  (revu-fixture-in-repo root
+    (save-current-buffer (revu-diff-worktree))
+    (save-current-buffer (revu-diff-worktree "feature"))
+    (save-current-buffer (revu-diff-worktree nil "kept-by-hand"))
+    (let (scratch)
+      (cl-letf (((symbol-function 'completing-read)
+                 (lambda (_prompt table &rest _)
+                   (setq scratch
+                         (seq-filter
+                          (lambda (name)
+                            (funcall (cdr (assq 'annotation-function
+                                                (cdr (funcall table "" nil
+                                                              'metadata))))
+                                     name))
+                          (all-completions "" table)))
+                   "worktree")))
+        (revu-open))
+      (should (equal scratch '("worktree"))))))
+
 (ert-deftest revu-open-reopens-a-review-over-its-recorded-source ()
   "What a Review is over comes from its record, not from what is on screen."
   (revu-fixture-in-repo root
@@ -204,7 +230,7 @@ write guard blocks on."
 (ert-deftest revu-open-reopens-a-narrowed-review-through-its-narrowing ()
   "A narrowed Review comes back narrowed: the Narrowing is part of its Source."
   (revu-fixture-in-repo root
-    (save-current-buffer (revu-diff-worktree nil '("beta.txt")))
+    (save-current-buffer (revu-diff-worktree nil nil '("beta.txt")))
     (revu-fixture-kill-review-buffers)
     (with-current-buffer (revu-open "worktree--beta.txt")
       (should (equal (revu-source-paths (revu-review-source (revu-review)))
@@ -223,7 +249,7 @@ write guard blocks on."
 (ert-deftest revu-discard-removes-both-files-and-kills-the-buffer ()
   "Discarding a Review leaves nothing of it behind."
   (revu-fixture-in-repo root
-    (let ((buffer (revu-diff-worktree "worktree")))
+    (let ((buffer (revu-diff-worktree nil "worktree")))
       (with-current-buffer buffer
         (revu-review-test--annotate-and-export "^\\+beta two staged$" "Never mind")
         (should (file-exists-p (revu-review-test--export-file root "worktree")))
@@ -235,7 +261,7 @@ write guard blocks on."
 (ert-deftest revu-discard-refuses-under-the-write-guard ()
   "What an agent wrote is not deleted by a reviewer who has not read it."
   (revu-fixture-in-repo root
-    (let ((buffer (revu-diff-worktree "worktree")))
+    (let ((buffer (revu-diff-worktree nil "worktree")))
       (with-current-buffer buffer
         (revu-fixture-goto-line-matching "^\\+beta two staged$")
         (revu-annotate-line "note" "Mine")

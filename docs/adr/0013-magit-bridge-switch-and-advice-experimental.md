@@ -107,3 +107,25 @@ whether a fixture-driven test of the advice earns its dependency tree.
   these commits" means, but it diverges from `d d` on the same selection and
   needs a root-commit special case. Rejected under the switch model, where
   the reviewer is running magit's commands and magit's semantics apply.
+
+## Amendment: a lone revision opens the worktree against it
+
+The refusal above — a `d w` or a `d r` given a revision other than `HEAD`
+refuses, because revu's worktree Source is against `HEAD` — was a limit of
+the Source, and ADR-0005's amendment lifts it. The worktree Source now takes
+any base Revision, so the Bridge maps onto it:
+
+- A lone revision from `d r`, and the revision `d w` reads from a prefix
+  argument, open the worktree against that revision. `git diff <rev>` is
+  what magit was about to show, and now it is what revu opens.
+- A revision naming the commit `HEAD` names — `HEAD` itself, or the branch
+  that is checked out — is the worktree Review against `HEAD`, compared as
+  commits rather than as strings, so the Review of what is about to be
+  committed stays one Review.
+- A revision naming no commit still refuses. So does `d s` given anything
+  but `HEAD`: there is no Source of the index against a commit, and adding
+  one is a domain change that does not ride in on a bridge.
+
+Revision names still arrive as full object ids and are still abbreviated
+the way magit's log shows them, so the Review of the worktree against a
+commit is called `worktree-vs-<short>`.

@@ -346,13 +346,11 @@ this revu cannot read is left out: it cannot be opened either, and
 (defun revu--scratch-p (entry)
   "Return non-nil when the Review in ENTRY is the scratch bucket of its Source.
 ENTRY is a cons of a name and a Review, and the Review is scratch while
-it is still called what its Source derives.  A Review over a range is
-read as named either way: its name was derived from the Revisions as the
-reviewer typed them and the record holds the commits those resolved to,
-so the two never match again."
-  (equal (car entry)
-         (ignore-errors
-           (revu-review-name-for-source (revu-review-source (cdr entry))))))
+it is still called what its Source derives.  Which names those are is
+`revu-review-scratch-name-p\='s to say: a Review whose name was derived
+from Revisions as the reviewer typed them reads as named either way."
+  (ignore-errors
+    (revu-review-scratch-name-p (car entry) (revu-review-source (cdr entry)))))
 
 (defun revu--read-review (root)
   "Prompt for one of the Reviews persisted under ROOT and return its name.
@@ -499,24 +497,40 @@ Sidecar from being written for a Review of nothing."
   (or files (user-error "%s" subject)))
 
 ;;;###autoload
-(defun revu-diff-worktree (&optional name paths)
-  "Review everything the worktree carries that HEAD does not.
-Staged and unstaged changes alike, because that is what the reviewer is
-about to commit.  NAME names the Review, and is the name derived from
-the Source when it is nothing; interactively a prefix argument asks for
-one.  PATHS narrows the Source to those pathspecs; it is never prompted
-for, so only a caller that means to narrow -- the magit Bridge -- ever
-narrows."
-  (interactive (list (revu--name-argument)))
+(defun revu-diff-worktree (&optional base name paths)
+  "Review everything the worktree carries that Revision BASE does not.
+BASE defaults to HEAD, which is the everyday reading: staged and
+unstaged changes alike, because that is what the reviewer is about to
+commit.  Any other Revision widens the Source to what `git diff <base>\='
+shows, which is what a reviewer asking for everything since a tag means.
+
+NAME names the Review, and is the name derived from the Source when it
+is nothing; interactively a prefix argument asks for one.  The derived
+name is `worktree\=' for a base naming the commit HEAD names, and carries
+BASE as it was written otherwise, so the Review of the worktree does not
+fork as HEAD moves and one taken against anything else never resumes it.
+The Review itself records the commit BASE resolved to, because that is
+what re-anchoring a removed line needs.  PATHS narrows the Source to
+those pathspecs; it is never prompted for, so only a caller that means
+to narrow -- the magit Bridge -- ever narrows."
+  (interactive (list nil (revu--name-argument)))
   (let* ((root (revu-project-root default-directory))
-         (revision (revu-diff-head-revision root))
-         (source (revu-source-worktree revision paths))
-         (name (revu--review-name source name)))
+         (head (revu-diff-head-revision root))
+         (revision (if base (revu--resolve root base) head))
+         ;; A base naming the commit HEAD names is HEAD: the branch that
+         ;; is checked out is one way of writing it, and reviewing the
+         ;; worktree against it is the Review of what is about to be
+         ;; committed rather than a second Review beside it.
+         (named-base (unless (equal revision head) base))
+         (name (revu--review-name (revu-source-worktree named-base paths)
+                                  name))
+         (source (revu-source-worktree revision paths)))
     (revu--open source
                 (revu--diff-files
                  (revu-diff-parse (revu-diff-worktree-text root revision paths))
-                 (format "The worktree at %s carries nothing HEAD does not%s"
-                         root (revu--narrowing-subject paths)))
+                 (format "The worktree at %s carries nothing %s does not%s"
+                         root (or base "HEAD")
+                         (revu--narrowing-subject paths)))
                 name)))
 
 ;;;###autoload

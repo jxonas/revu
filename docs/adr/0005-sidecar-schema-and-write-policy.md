@@ -93,3 +93,42 @@ the glossary nouns rather than the file types, so `exports/` stays right
 when a second exporter arrives (ADR-0006). There is no migration: `.revu/`
 is personal, git-ignored, single-user v0 state, and a reviewer with flat
 files from before this amendment moves them by hand once.
+
+## Amendment: the worktree may be taken against a Revision, and says so in its name
+
+A worktree Source is a diff against a Revision, and that Revision no longer
+has to be `HEAD`: `git diff <rev>` is everything the worktree carries that
+`<rev>` does not, committed and uncommitted alike, which is what a reviewer
+asking for "everything since the tag" means.
+
+The name is what keeps the two apart. The worktree against `HEAD` is called
+`worktree` whatever commit `HEAD` is on — the Review of what is about to be
+committed must not fork every time a commit lands — and the worktree against
+anything else is `worktree-vs-<revision>`, with the Revision slugged as the
+reviewer wrote it. Deriving both from the recorded commit was rejected: the
+`HEAD` Review would fork on every commit. Deriving neither was rejected the
+other way: a Review against a tag would resume the `HEAD` Review's Sidecar
+and read the wrong Source under the wrong Annotations.
+
+The name is derived from the Revision as it was typed and the Source records
+the commit it resolved to, exactly as a range does, and for the same reason:
+re-anchoring a removed line needs the commit. Whether a base *is* `HEAD` is
+asked of the commits, not of the strings: `HEAD` itself and the branch that
+is checked out both open the one `worktree` Review rather than a second one
+beside it. A Revision naming nothing is refused rather than read as `HEAD`.
+
+Which Reviews read as their Source's scratch bucket follows from that. A
+worktree Review is recognised by the name it derives against `HEAD`, so the
+everyday one keeps saying it is scratch however far `HEAD` has moved; one
+taken against another Revision reads as named, exactly as a Review over a
+range does, because its name was what the reviewer typed and its record
+holds what that resolved to.
+
+The separator is `-vs-`, not `--`: `--` is already the Narrowing's, and a
+Narrowing still slugs its pathspecs onto either name —
+`worktree-vs-qa-2026-08-17--src-foo`. The two cannot be confused for one
+another, because a slug collapses every run of awkward characters to a
+single hyphen and so no Revision can spell `--`.
+
+No schema change: `base` already holds the commit, and a reader older than
+this amendment reads such a Sidecar as the worktree Source it is.

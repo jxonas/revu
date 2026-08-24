@@ -204,6 +204,12 @@ A diff Source carrying none spans every path (ADR-0005's amendment)."
 Directory separators and other awkward characters become hyphens."
   (replace-regexp-in-string "[^A-Za-z0-9._]+" "-" path))
 
+(defun revu--name-slug (text)
+  "Return TEXT slugged and trimmed of the hyphens a slug can leave at its ends.
+A name is built by joining slugs, so a slug that began or ended with one
+would double a separator and read as one it is not."
+  (string-trim (revu--slug text) "-+" "-+"))
+
 (defun revu--narrowing-slug (source)
   "Return the name suffix SOURCE\='s Narrowing adds, or the empty string.
 Each pathspec is slugged and hyphen-joined onto the Revisions\=' name,
@@ -211,10 +217,25 @@ Each pathspec is slugged and hyphen-joined onto the Revisions\=' name,
 (ADR-0005\='s amendment names them in that order).  So the same Narrowing
 resumes the same Review, and the full one over the same Revisions is left
 alone."
-  (mapconcat (lambda (path)
-               (concat "--" (string-trim (revu--slug path) "-+" "-+")))
+  (mapconcat (lambda (path) (concat "--" (revu--name-slug path)))
              (revu-source-paths source)
              ""))
+
+(defun revu--worktree-name (source)
+  "Return the name the worktree SOURCE derives, without its Narrowing.
+The worktree against HEAD is called `worktree\=' whatever commit HEAD is
+on, so the Review of what is about to be committed does not fork every
+time a commit lands.  The worktree against any other Revision is a
+Review of its own and carries that Revision, as the reviewer named it,
+so it never resumes the one against HEAD.  The separator is `-vs-\=',
+which is not `--\=': that one is already the Narrowing\='s."
+  (let ((base (revu-source-base source)))
+    ;; The base is read as it was written and not as what it resolves
+    ;; to, because a name is what was written: nothing written is HEAD,
+    ;; and so is HEAD itself.
+    (if (or (null base) (equal base "HEAD"))
+        "worktree"
+      (concat "worktree-vs-" (revu--name-slug base)))))
 
 (defun revu-review-name-for-source (source)
   "Return the default Review name for SOURCE.
@@ -222,7 +243,8 @@ The name is derived, not invented, so that reviewing the same Source
 again finds the Review that is already there instead of starting a new
 one."
   (pcase (revu-source-kind source)
-    ("worktree" (concat "worktree" (revu--narrowing-slug source)))
+    ("worktree" (concat (revu--worktree-name source)
+                        (revu--narrowing-slug source)))
     ("staged" (concat "staged" (revu--narrowing-slug source)))
     ("range" (concat (revu--slug (format "%s..%s"
                                          (revu-source-base source)
@@ -231,6 +253,19 @@ one."
     ("file" (concat "file-" (revu--slug (revu-source-path source))))
     (kind (signal 'revu-invalid-sidecar (list (format "Unknown Source kind: %s"
                                                       kind))))))
+
+(defun revu-review-scratch-name-p (name source)
+  "Return non-nil when NAME is the name of SOURCE\='s scratch bucket.
+Usually that is the name SOURCE derives.  A worktree Source is asked
+whether NAME is the name it derives against HEAD, because that is the
+one name a worktree Review can be recognised by after the fact: a Review
+taken against another Revision was named after the Revision as it was
+typed and the record holds the commit that resolved to, so the two never
+match as strings again.  It therefore reads as named, exactly as a
+Review over a range does, and for the same reason."
+  (if (equal (revu-source-kind source) "worktree")
+      (equal name (concat "worktree" (revu--narrowing-slug source)))
+    (equal name (revu-review-name-for-source source))))
 
 ;;;; Targets
 

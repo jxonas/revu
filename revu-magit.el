@@ -140,25 +140,49 @@ A range with an end missing is that end read as HEAD, which is the diff
 git takes and what `magit-diff-range' says it shows."
   (if (or (null revision) (string-empty-p revision)) "HEAD" revision))
 
-(defun revu-magit--against-head (revision subject plan)
-  "Return PLAN when REVISION is HEAD, or why revu will not review SUBJECT.
-The worktree and staged Sources are both taken against HEAD, so the
-revision magit read from a prefix argument is refused rather than
-quietly reviewed as HEAD.  The two are compared as the commits they
-name, not as the strings they were written as, since the branch that is
-checked out is HEAD.  A REVISION of nil is magit naming none, which is
-HEAD by default."
+(defun revu-magit--base (revision)
+  "Return what REVISION is as the base of a Source magit handed revu.
+`head\=' when it names the commit HEAD names -- nothing at all, HEAD
+itself, or the branch that is checked out, compared as the commits they
+name rather than as the strings they were written as, because the
+revision was magit\='s to choose and not the reviewer\='s to type.  Nil when
+it names no commit, which is refused rather than read as HEAD.  REVISION
+itself otherwise, which is a base of its own."
   (let* ((root (revu-magit--root))
          (commit (and revision (revu-diff-resolve-revision root revision))))
     (cond
-     ((null revision) plan)
-     ((null commit)
-      (cons 'refuse (format "No such revision in this repository: %s"
-                            revision)))
-     ((not (equal commit (revu-diff-resolve-revision root "HEAD")))
-      (cons 'refuse (format "The %s is reviewed against HEAD; \
-revu has no Source against %s" subject revision)))
-     (t plan))))
+     ((null revision) 'head)
+     ((null commit) nil)
+     ((equal commit (revu-diff-resolve-revision root "HEAD")) 'head)
+     (t revision))))
+
+(defun revu-magit--no-such-revision (revision)
+  "Return the refusal for REVISION naming no commit in this repository."
+  (cons 'refuse (format "No such revision in this repository: %s" revision)))
+
+(defun revu-magit--against-head (revision subject plan)
+  "Return PLAN when REVISION names HEAD, or why revu will not review SUBJECT.
+The index is read against HEAD and there is no Source of it against a
+commit, so the revision magit read from a prefix argument is refused
+rather than quietly reviewed as HEAD."
+  (pcase (revu-magit--base revision)
+    ('head plan)
+    ('nil (revu-magit--no-such-revision revision))
+    (_ (cons 'refuse (format "The %s is reviewed against HEAD; \
+revu has no Source against %s" subject revision)))))
+
+(defun revu-magit--worktree (revision paths)
+  "Return the plan reviewing the worktree against REVISION, or a refusal.
+PATHS is the Narrowing, and may be nil.  A REVISION naming the commit
+HEAD names is the worktree Review against HEAD, so what is about to be
+committed stays one Review as commits land rather than one Review per
+commit; anything else is the Review of the worktree against that
+Revision, named after it."
+  (pcase (revu-magit--base revision)
+    ('head (cons 'revu-diff-worktree (list nil nil paths)))
+    ('nil (revu-magit--no-such-revision revision))
+    (base (cons 'revu-diff-worktree
+                (list (revu-magit--abbreviate base) nil paths)))))
 
 (defun revu-magit--merge-base (a b paths)
   "Return the plan a three-dot range from A to B maps to, or a refusal.
@@ -195,8 +219,7 @@ is the diff git would have taken."
       (revu-magit--against-head range "index"
                                 (cons 'revu-diff-staged (list nil paths))))
      ((eq type 'unstaged)
-      (revu-magit--against-head (revu-magit--endpoint range) "worktree"
-                                (cons 'revu-diff-worktree (list nil paths))))
+      (revu-magit--worktree (revu-magit--endpoint range) paths))
      ((null range)
       (cons 'refuse "This diff names no Revisions for revu to review"))
      ((string-match "\\`\\(.*\\)\\.\\.\\.\\(.*\\)\\'" range)
@@ -208,11 +231,10 @@ is the diff git would have taken."
                          (revu-magit--endpoint (match-string 2 range))
                          paths))
      ;; Anything else names one revision, and `git diff REV\=' is the
-     ;; worktree against it.  A range notation revu cannot take two
-     ;; Revisions out of resolves as no revision at all, and refuses
-     ;; there rather than being guessed at here.
-     (t (revu-magit--against-head range "worktree"
-                                  (cons 'revu-diff-worktree (list nil paths)))))))
+     ;; worktree against it, which is the Source revu takes.  A range
+     ;; notation revu cannot take two Revisions out of resolves as no
+     ;; revision at all, and is refused there rather than guessed at here.
+     (t (revu-magit--worktree range paths)))))
 
 (defun revu-magit-revision-plan (rev files)
   "Return what revu does with the revision REV magit was about to show.

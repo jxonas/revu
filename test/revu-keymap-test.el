@@ -50,7 +50,7 @@
 (ert-deftest revu-keymap-binds-every-command-of-the-canonical-map ()
   "Each key ADR-0010 names runs the command it names, in a review buffer."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should (eq (key-binding (kbd "a")) 'revu-annotate))
       (should (eq (key-binding (kbd "e")) 'revu-annotate-edit))
       (should (eq (key-binding (kbd "k")) 'revu-annotate-delete))
@@ -65,7 +65,7 @@
 The canonical map is laid on top of magit-section's and `special-mode's,
 never in place of them."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should (eq (key-binding (kbd "TAB")) 'magit-section-toggle))
       (should (eq (key-binding (kbd "<backtab>")) 'magit-section-cycle-global))
       (should (eq (key-binding (kbd "n")) 'magit-section-forward))
@@ -83,7 +83,7 @@ never in place of them."
 (ert-deftest revu-keymap-a-adds-and-k-deletes-an-annotation ()
   "`a' writes an Annotation to the Sidecar and `k' takes it away again."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-keymap-test--answering "question" "Is seven the right one?"
         (revu-keymap-test--press "a"))
@@ -102,7 +102,7 @@ never in place of them."
 (ert-deftest revu-keymap-e-rewrites-the-annotation-body ()
   "`e' rewrites the body of the Annotation point is in."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "First words")
       (revu-fixture-goto-line-matching "First words")
@@ -117,7 +117,7 @@ never in place of them."
 (ert-deftest revu-keymap-r-marks-the-hunk-reviewed ()
   "`r' writes a Reviewed mark over the hunk point is in."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-keymap-test--press "r")
       (should (equal (length (revu-review-marks
@@ -127,7 +127,7 @@ never in place of them."
 (ert-deftest revu-keymap-e-uppercase-exports-the-review ()
   "`E' writes the Review out as revdiff markdown beside the Sidecar."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "Worth a look")
       (revu-keymap-test--press "E")
@@ -139,7 +139,7 @@ never in place of them."
 (ert-deftest revu-keymap-g-reloads-the-source-and-the-sidecar ()
   "`g' reads the Source anew, so what the worktree says now is what renders."
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should-not (string-match-p "alpha two rewritten" (revu-fixture-render)))
       (revu-fixture-write-file
        root "alpha.txt"
@@ -156,7 +156,7 @@ never in place of them."
 deleting an Annotation is on `k' where the canonical map put it."
   (should-not (fboundp 'evil-define-key*))
   (revu-fixture-in-repo root
-    (with-current-buffer (revu-diff-worktree "worktree")
+    (with-current-buffer (revu-diff-worktree nil "worktree")
       (should (eq (key-binding (kbd "x")) 'undefined))
       ;; `g' is the reload command outright, not evil's prefix, so there
       ;; is no `gr' or `gj' under it, and no `z' or bracket prefix either.
@@ -317,7 +317,7 @@ filters are asked for too seldom to be worth a letter (ADR-0010)."
   "`RET' on an Annotation opens its file with point on the line it is about."
   (revu-fixture-in-repo root
     (unwind-protect
-        (with-current-buffer (revu-diff-worktree "worktree")
+        (with-current-buffer (revu-diff-worktree nil "worktree")
           (revu-fixture-goto-line-matching
            "^\\+alpha seven in the worktree$")
           (revu-annotate-line "note" "Right here")
@@ -333,7 +333,7 @@ filters are asked for too seldom to be worth a letter (ADR-0010)."
 The line is what the reviewer wrote about; the number it had is not."
   (revu-fixture-in-repo root
     (unwind-protect
-        (with-current-buffer (revu-diff-worktree "worktree")
+        (with-current-buffer (revu-diff-worktree nil "worktree")
           (revu-fixture-goto-line-matching
            "^\\+alpha seven in the worktree$")
           (revu-annotate-line "note" "Follow me")
@@ -355,7 +355,7 @@ The line is what the reviewer wrote about; the number it had is not."
   "An Anchor that was not found again is not guessed at: point does not move."
   (revu-fixture-in-repo root
     (unwind-protect
-        (with-current-buffer (revu-diff-worktree "worktree")
+        (with-current-buffer (revu-diff-worktree nil "worktree")
           (revu-fixture-goto-line-matching
            "^\\+alpha seven in the worktree$")
           (revu-annotate-line "note" "Gone tomorrow")
@@ -376,7 +376,7 @@ The line is what the reviewer wrote about; the number it had is not."
   "A line the diff removed is in no file to go to, and `RET' says so."
   (revu-fixture-in-repo root
     (unwind-protect
-        (with-current-buffer (revu-diff-worktree "worktree")
+        (with-current-buffer (revu-diff-worktree nil "worktree")
           (revu-fixture-goto-line-matching "^-alpha seven$")
           (revu-annotate-line "note" "Why did this go?")
           (revu-fixture-goto-line-matching "Why did this go")
@@ -394,7 +394,7 @@ The line is what the reviewer wrote about; the number it had is not."
   "`RET' on a line of the Source itself opens the file at that line."
   (revu-fixture-in-repo root
     (unwind-protect
-        (with-current-buffer (revu-diff-worktree "worktree")
+        (with-current-buffer (revu-diff-worktree nil "worktree")
           (revu-fixture-goto-line-matching
            "^\\+alpha seven in the worktree$")
           (revu-keymap-test--press "RET")
@@ -412,7 +412,7 @@ sees and nothing else (ADR-0011)."
     (unwind-protect
         (let ((revu-line-numbers t)
               (line "^ +7 \\+alpha seven in the worktree$"))
-          (with-current-buffer (revu-diff-worktree "worktree")
+          (with-current-buffer (revu-diff-worktree nil "worktree")
             (revu-fixture-goto-line-matching line)
             (revu-keymap-test--press "r")
             (let ((marks (append (revu-review-marks

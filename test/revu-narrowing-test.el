@@ -90,6 +90,27 @@
                      (revu-review-name-for-source
                       (revu-source-range "main" "feature")))))
 
+(ert-deftest revu-narrowing-slugs-onto-a-worktree-against-a-revision ()
+  "The Narrowing slug lands on either worktree name, and the separators differ.
+`-vs-\=' separates the base from the kind and `--\=' the pathspecs from
+both, and a Revision cannot spell either: a slug collapses every run of
+awkward characters to one hyphen."
+  (should (equal (revu-review-name-for-source
+                  (revu-source-worktree nil '("src/foo/")))
+                 "worktree--src-foo"))
+  (should (equal (revu-review-name-for-source
+                  (revu-source-worktree "qa-2026-08-17" '("src/foo/" "docs")))
+                 "worktree-vs-qa-2026-08-17--src-foo--docs"))
+  ;; A Revision written with the Narrowing's own separator in it slugs
+  ;; down to one hyphen, so the two never read as one another.
+  (should (equal (revu-review-name-for-source
+                  (revu-source-worktree "qa--17"))
+                 "worktree-vs-qa-17"))
+  (should-not (equal (revu-review-name-for-source
+                      (revu-source-worktree "qa" '("17")))
+                     (revu-review-name-for-source
+                      (revu-source-worktree "qa--17")))))
+
 ;;;; The diff
 
 (defun revu-narrowing-test--commit-everything (root)
@@ -203,7 +224,7 @@ Review is read through, whoever wrote the record."
     (revu-fixture-write-file root "beta.txt" "beta one\nbeta staged again\n")
     (revu-fixture-git-output root "add" "beta.txt")
     (revu-fixture-write-file root "alpha.txt" "alpha in the worktree\n")
-    (revu-diff-worktree "worktree-full")
+    (revu-diff-worktree nil "worktree-full")
     (should-not (assq 'paths (revu-review-source
                               (revu-fixture-sidecar root "worktree-full"))))
     (revu-diff-staged "staged-full")
