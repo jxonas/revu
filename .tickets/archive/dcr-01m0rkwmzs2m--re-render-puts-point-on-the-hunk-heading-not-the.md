@@ -1,26 +1,27 @@
 ---
 id: dcr-01m0rkwmzs2m
 title: Re-render puts point on the hunk heading, not the line the reviewer was on
-status: open
+status: closed
 type: bug
 priority: 2
 mode: afk
 created: '2026-08-24T00:49:23.448882726Z'
-updated: '2026-08-24T12:54:02.855727545Z'
+updated: '2026-08-24T13:32:16.183084138Z'
+closed: '2026-08-24T13:32:16.183084138Z'
 tags:
 - render
 - ux
 acceptance:
 - title: Point returns to the same source line, not the hunk heading, after annotate/edit/delete
-  done: false
+  done: true
 - title: Point returns to the same source line after revu-reload when lines were added above it
-  done: false
+  done: true
 - title: Point falls back sanely when the line it was on is gone from the Source
-  done: false
+  done: true
 - title: The column is restored along with the line
-  done: false
+  done: true
 - title: The line is restored to the height it was at, so the view does not jump when point survives
-  done: false
+  done: true
 links:
 - dcr-01m0rkx3k23r
 - dcr-01m0rkxmpxza
@@ -62,3 +63,9 @@ and let the window settle around it rather than forcing a scroll.
 ## Blocked by
 
 None - can start immediately.
+
+## Notes
+
+**2026-08-24T13:32:16.183084138Z**
+
+A render puts point back on the line the reviewer was on, found by the revu-target that line carries rather than by the row it sat on: an Annotation inserted above them, or a diff re-taken over a file that grew, moves every row and no Target. The section answers by its ADR-0012 positional ident once the line is gone from the Source, and the buffer row answers only once the section is gone too. A line a fold has hidden is no answer -- marking a hunk Reviewed collapses it, so point goes to the heading rather than into text nobody can see. The column comes back with the line, and the line comes back at the height it sat at, via set-window-point before recenter so a window that is not the selected one cannot put its stale point back. recenter clamps at the top of the buffer, so a line with less above it than before settles where it can. revu--goto-line shared its hand-rolled property walk with the new one. Six tests over annotate, reload, the fold, the removed-line Target, the missing line and the height; 178 pass, compile and lint clean. Commit 9f23b32.
