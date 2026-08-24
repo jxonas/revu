@@ -127,23 +127,37 @@ A blob is an object but not a Revision, so this is the question a diff's
 `index' header can answer."
   (eq (car (revu-diff--call root (list "cat-file" "-e" object))) 0))
 
-(defun revu-diff-worktree-text (root revision)
+(defun revu-diff--pathspecs (paths)
+  "Return the `git diff\=' arguments limiting a diff to PATHS, or nil.
+The pathspecs come last, behind the `--\=' that keeps git from reading one
+of them as a Revision."
+  (when (> (length paths) 0)
+    (cons "--" (append paths nil))))
+
+(defun revu-diff-worktree-text (root revision &optional paths)
   "Return the unified diff of the worktree at ROOT against REVISION.
 Everything uncommitted is here, staged or not: the reviewer asking for
 the worktree is asking to read what they are about to commit, and a
 change that has already been staged is still one of them.  Diffing
 against the Revision the Review records is also what lets a removed line
-re-locate in the base blob (ADR-0003)."
-  (apply #'revu-diff--git root "diff" revision revu-diff--diff-options))
+re-locate in the base blob (ADR-0003).  PATHS, when given, is the
+Narrowing the diff is limited to."
+  (apply #'revu-diff--git root "diff" revision
+         (append revu-diff--diff-options (revu-diff--pathspecs paths))))
 
-(defun revu-diff-staged-text (root)
-  "Return the unified diff of the index at ROOT against HEAD."
-  (apply #'revu-diff--git root "diff" "--cached" revu-diff--diff-options))
+(defun revu-diff-staged-text (root &optional paths)
+  "Return the unified diff of the index at ROOT against HEAD.
+PATHS, when given, is the Narrowing the diff is limited to."
+  (apply #'revu-diff--git root "diff" "--cached"
+         (append revu-diff--diff-options (revu-diff--pathspecs paths))))
 
-(defun revu-diff-range-text (root base head)
-  "Return the unified diff between Revisions BASE and HEAD in ROOT."
+(defun revu-diff-range-text (root base head &optional paths)
+  "Return the unified diff between Revisions BASE and HEAD in ROOT.
+PATHS, when given, is the Narrowing the diff is limited to."
   (apply #'revu-diff--git root "diff"
-         (append revu-diff--diff-options (list (format "%s..%s" base head)))))
+         (append revu-diff--diff-options
+                 (list (format "%s..%s" base head))
+                 (revu-diff--pathspecs paths))))
 
 (defun revu-diff-show-file (root revision path)
   "Return the content of PATH at REVISION in ROOT, or nil when it has none.

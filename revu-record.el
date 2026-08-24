@@ -150,17 +150,29 @@ TIME defaults to now.  The result looks like \"2026-08-23T20:52:05Z\"."
 
 ;;;; Sources
 
-(defun revu-source-worktree (base)
-  "Return the Source of a diff of the worktree against Revision BASE."
-  `((kind . "worktree") (base . ,base)))
+(defun revu--narrowing (paths)
+  "Return the Source fields recording PATHS as a Narrowing, or nil.
+PATHS is a list or a vector of git pathspecs.  No pathspecs is no
+Narrowing -- the field is left off rather than written empty -- so a
+Source nobody narrowed reads exactly as it did before the Narrowing
+existed."
+  (when (> (length paths) 0)
+    `((paths . ,(vconcat paths)))))
 
-(defun revu-source-staged (base)
-  "Return the Source of a diff of the index against Revision BASE."
-  `((kind . "staged") (base . ,base)))
+(defun revu-source-worktree (base &optional paths)
+  "Return the Source of a diff of the worktree against Revision BASE.
+PATHS, when given, is the Narrowing the diff is limited to."
+  `((kind . "worktree") (base . ,base) ,@(revu--narrowing paths)))
 
-(defun revu-source-range (base head)
-  "Return the Source of a diff between Revisions BASE and HEAD."
-  `((kind . "range") (base . ,base) (head . ,head)))
+(defun revu-source-staged (base &optional paths)
+  "Return the Source of a diff of the index against Revision BASE.
+PATHS, when given, is the Narrowing the diff is limited to."
+  `((kind . "staged") (base . ,base) ,@(revu--narrowing paths)))
+
+(defun revu-source-range (base head &optional paths)
+  "Return the Source of a diff between Revisions BASE and HEAD.
+PATHS, when given, is the Narrowing the diff is limited to."
+  `((kind . "range") (base . ,base) (head . ,head) ,@(revu--narrowing paths)))
 
 (defun revu-source-file (path)
   "Return the Source of the plain file at repository-relative PATH."
@@ -182,10 +194,27 @@ TIME defaults to now.  The result looks like \"2026-08-23T20:52:05Z\"."
   "Return the path of a plain-file SOURCE, or nil."
   (alist-get 'path source))
 
+(defun revu-source-paths (source)
+  "Return SOURCE's Narrowing as a list of pathspecs, or nil for none.
+A diff Source carrying none spans every path (ADR-0005's amendment)."
+  (append (alist-get 'paths source) nil))
+
 (defun revu--slug (path)
   "Return PATH with every character a file name should not carry replaced.
 Directory separators and other awkward characters become hyphens."
   (replace-regexp-in-string "[^A-Za-z0-9._]+" "-" path))
+
+(defun revu--narrowing-slug (source)
+  "Return the name suffix SOURCE\='s Narrowing adds, or the empty string.
+Each pathspec is slugged and hyphen-joined onto the Revisions\=' name,
+`main..feature--src-foo--docs\=', in the order the pathspecs were given
+(ADR-0005\='s amendment names them in that order).  So the same Narrowing
+resumes the same Review, and the full one over the same Revisions is left
+alone."
+  (mapconcat (lambda (path)
+               (concat "--" (string-trim (revu--slug path) "-+" "-+")))
+             (revu-source-paths source)
+             ""))
 
 (defun revu-review-name-for-source (source)
   "Return the default Review name for SOURCE.
@@ -193,11 +222,12 @@ The name is derived, not invented, so that reviewing the same Source
 again finds the Review that is already there instead of starting a new
 one."
   (pcase (revu-source-kind source)
-    ("worktree" "worktree")
-    ("staged" "staged")
-    ("range" (revu--slug (format "%s..%s"
-                                 (revu-source-base source)
-                                 (revu-source-head source))))
+    ("worktree" (concat "worktree" (revu--narrowing-slug source)))
+    ("staged" (concat "staged" (revu--narrowing-slug source)))
+    ("range" (concat (revu--slug (format "%s..%s"
+                                         (revu-source-base source)
+                                         (revu-source-head source)))
+                     (revu--narrowing-slug source)))
     ("file" (concat "file-" (revu--slug (revu-source-path source))))
     (kind (signal 'revu-invalid-sidecar (list (format "Unknown Source kind: %s"
                                                       kind))))))
@@ -558,6 +588,10 @@ failure this format exists to prevent."
                        revu-source-kinds)
                "the Sidecar has an unknown Source kind: %s"
                (revu-source-kind (revu-review-source review)))
+  (let ((paths (alist-get 'paths (revu-review-source review))))
+    (revu--check (or (null paths)
+                     (and (vectorp paths) (seq-every-p #'stringp paths)))
+                 "the Sidecar's Source paths are not an array of pathspecs"))
   (revu--check (vectorp (revu-review-annotations review))
                "the Sidecar's annotations are not an array")
   (let ((index 0))

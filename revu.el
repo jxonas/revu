@@ -178,20 +178,26 @@ than falling back to naming a change nobody made."
 This is how a Source is read again on reload: the Review records what it
 was taken from, so a diff can always be taken anew and a plain file read
 anew.  A Review whose Source was a pasted diff records the Revisions it
-spanned, so it is read back from the repository like any other range."
-  (pcase (revu-source-kind source)
-    ("worktree" (revu-diff-parse
-                 (revu-diff-worktree-text root (revu-source-base source))))
-    ("staged" (revu-diff-parse (revu-diff-staged-text root)))
-    ("range" (revu-diff-parse
-              (revu-diff-range-text root
-                                    (revu-source-base source)
-                                    (revu-source-head source))))
-    ("file" (let ((path (revu-source-path source)))
-              (list (revu--plain-file
-                     path
-                     (revu--file-content (expand-file-name path root))))))
-    (kind (user-error "Cannot read a %s Source again" kind))))
+spanned, so it is read back from the repository like any other range.
+A Source carrying a Narrowing is read again through it, so a narrowed
+Review stays narrowed and its Annotations are re-anchored against the
+files the reviewer asked for (ADR-0005\='s amendment)."
+  (let ((paths (revu-source-paths source)))
+    (pcase (revu-source-kind source)
+      ("worktree" (revu-diff-parse
+                   (revu-diff-worktree-text root (revu-source-base source)
+                                            paths)))
+      ("staged" (revu-diff-parse (revu-diff-staged-text root paths)))
+      ("range" (revu-diff-parse
+                (revu-diff-range-text root
+                                      (revu-source-base source)
+                                      (revu-source-head source)
+                                      paths)))
+      ("file" (let ((path (revu-source-path source)))
+                (list (revu--plain-file
+                       path
+                       (revu--file-content (expand-file-name path root))))))
+      (kind (user-error "Cannot read a %s Source again" kind)))))
 
 ;;;###autoload
 (defun revu-reload ()
@@ -254,47 +260,56 @@ review buffer."
     buffer))
 
 ;;;###autoload
-(defun revu-diff-worktree (&optional name)
+(defun revu-diff-worktree (&optional name paths)
   "Review everything the worktree carries that HEAD does not.
 Staged and unstaged changes alike, because that is what the reviewer is
 about to commit.  NAME names the Review; it is prompted for, with the
-name derived from the Source offered as the default."
+name derived from the Source offered as the default.  PATHS narrows the
+Source to those pathspecs; it is never prompted for, so only a caller
+that means to narrow -- the magit Bridge -- ever narrows."
   (interactive)
   (let* ((root (revu-project-root default-directory))
          (revision (revu-diff-head-revision root))
-         (source (revu-source-worktree revision))
+         (source (revu-source-worktree revision paths))
          (name (or name (revu--read-review-name source))))
     (revu--open source
-                (revu-diff-parse (revu-diff-worktree-text root revision))
+                (revu-diff-parse (revu-diff-worktree-text root revision paths))
                 name)))
 
 ;;;###autoload
-(defun revu-diff-staged (&optional name)
+(defun revu-diff-staged (&optional name paths)
   "Review what is staged in the index, against HEAD.
 NAME names the Review; it is prompted for, with the name derived from the
-Source offered as the default."
+Source offered as the default.  PATHS narrows the Source to those
+pathspecs, and is never prompted for."
   (interactive)
   (let* ((root (revu-project-root default-directory))
-         (source (revu-source-staged (revu-diff-head-revision root)))
+         (source (revu-source-staged (revu-diff-head-revision root) paths))
          (name (or name (revu--read-review-name source))))
-    (revu--open source (revu-diff-parse (revu-diff-staged-text root)) name)))
+    (revu--open source (revu-diff-parse (revu-diff-staged-text root paths))
+                name)))
 
 ;;;###autoload
-(defun revu-diff-range (&optional base head name)
+(defun revu-diff-range (&optional base head name paths)
   "Review what the Revisions BASE and HEAD differ by.
 NAME names the Review; it is prompted for, with the name derived from the
 Revisions as they were typed -- `main..feature', not the commits they
 resolve to -- offered as the default.  The Review itself records the
-commits, because that is what re-anchoring a removed line needs."
+commits, because that is what re-anchoring a removed line needs.  PATHS
+narrows the Source to those pathspecs, and is never prompted for: the
+name offered then carries their slug, so a narrowed Review resumes itself
+rather than the full one."
   (interactive)
   (let* ((root (revu-project-root default-directory))
          (base (or base (read-string "Base revision: ")))
          (head (or head (read-string "Head revision: " "HEAD")))
-         (name (or name (revu--read-review-name (revu-source-range base head))))
+         (name (or name (revu--read-review-name
+                         (revu-source-range base head paths))))
          (source (revu-source-range (revu--resolve root base)
-                                    (revu--resolve root head))))
+                                    (revu--resolve root head)
+                                    paths)))
     (revu--open source
-                (revu-diff-parse (revu-diff-range-text root base head))
+                (revu-diff-parse (revu-diff-range-text root base head paths))
                 name)))
 
 (defun revu--resolve (root revision)
