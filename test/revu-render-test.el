@@ -421,5 +421,51 @@ renamed it, so its Target is not the one the lines around it carry."
                                (line-beginning-position)
                                (line-end-position)))))))
 
+(ert-deftest revu-render-highlight-leaves-a-hunk-line-its-own-face ()
+  "Point in a hunk covers its heading only, so the lines keep their Origin."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-put-point-on-and-highlight
+       revu-fixture-worktree-seven)
+      (should (eq (revu-fixture-face-on-screen "\\+alpha seven in the worktree")
+                  'diff-added))
+      (should (eq (revu-fixture-face-on-screen "-alpha seven$")
+                  'diff-removed)))))
+
+(ert-deftest revu-render-highlight-covers-the-heading-of-the-current-hunk ()
+  "The affordance survives: the heading of the section under point is lit.
+Point is on a body line, where a reviewer reading a hunk holds it."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-put-point-on-and-highlight
+       revu-fixture-worktree-seven)
+      (should (eq (revu-fixture-face-on-screen "^@@")
+                  'magit-section-highlight)))))
+
+(ert-deftest revu-render-highlight-leaves-a-file-s-lines-their-own-face ()
+  "Point on a file heading covers that heading only, not the hunks under it."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-put-point-on-and-highlight "^modified +alpha\\.txt$")
+      (should (eq (revu-fixture-face-on-screen "^modified +alpha\\.txt$")
+                  'magit-section-highlight))
+      (should (eq (revu-fixture-face-on-screen "\\+alpha seven in the worktree")
+                  'diff-added))
+      (should (eq (revu-fixture-face-on-screen "^@@")
+                  'revu-hunk-heading)))))
+
+(ert-deftest revu-render-highlight-leaves-a-plain-file-s-lines-their-face ()
+  "A plain file has no hunk section, so the file section is what covers it."
+  (revu-fixture-in-repo root
+    (revu-file (expand-file-name "README.md" root) "plain")
+    (with-current-buffer (revu-buffer-name "plain")
+      ;; A plain file's lines are the file section's own body, so point on
+      ;; one of them makes the file section current (ADR-0011).
+      (revu-fixture-put-point-on-and-highlight "^ +1 # Fixture$")
+      (should (eq (revu-fixture-face-on-screen "^README\\.md$")
+                  'magit-section-highlight))
+      (should (eq (revu-fixture-face-on-screen "# Fixture")
+                  'diff-context)))))
+
 (provide 'revu-render-test)
 ;;; revu-render-test.el ends here

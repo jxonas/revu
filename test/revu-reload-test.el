@@ -76,12 +76,6 @@ Return the review buffer, with point left on the annotated line."
       (revu-annotate-line "question" "Why this line?"))
     buffer))
 
-(defun revu-reload-test--face-at (regexp)
-  "Return the `font-lock-face' of the buffer text REGEXP matches."
-  (goto-char (point-min))
-  (should (re-search-forward regexp nil t))
-  (get-text-property (match-beginning 0) 'font-lock-face))
-
 (ert-deftest revu-reload-shows-an-agent-reply-under-the-body ()
   "A Reply written by an agent renders inline under the Annotation's body."
   (revu-fixture-in-repo root
@@ -99,7 +93,26 @@ Return the review buffer, with point left on the annotated line."
         ;; The Reply comes under the body it answers.
         (should (< (string-match "Why this line?" text)
                    (string-match "It guards the seventh line\\." text))))
-      (should (eq (revu-reload-test--face-at "It guards the seventh line")
+      (should (eq (revu-fixture-face-on-screen "It guards the seventh line")
+                  'revu-reply)))))
+
+(ert-deftest revu-reload-highlight-keeps-a-reply-apart-from-the-body ()
+  "Point on an Annotation covers its heading only.
+The Reply's face is the answered signal (ADR-0007), so it has to stay
+readable while the reviewer stands on the Annotation it answers."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-reload-test--open-worktree root)
+      (revu-reload-test--agent-edit
+       root "worktree"
+       (lambda (review)
+         (revu-reload-test--set-reply review "It guards the seventh line.")))
+      (revu-reload)
+      (revu-fixture-put-point-on-and-highlight "^ +question")
+      (should (eq (revu-fixture-face-on-screen "^ +question")
+                  'magit-section-highlight))
+      (should (eq (revu-fixture-face-on-screen "Why this line\\?")
+                  'revu-annotation-body))
+      (should (eq (revu-fixture-face-on-screen "It guards the seventh line")
                   'revu-reply)))))
 
 (defun revu-reload-test--annotation-sections ()

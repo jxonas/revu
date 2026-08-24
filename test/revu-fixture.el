@@ -192,6 +192,24 @@ It is the added half of the one line the worktree changes, so it is a
 line with context above it, a removed line beside it and hunks either
 side -- everything a test about where point lands needs around it.")
 
+(defun revu-fixture-put-point-on-and-highlight (regexp)
+  "Put point on the line matching REGEXP and highlight the section it is in.
+The highlight is what a reviewer moving point would get: outside a
+command loop nothing runs the post-command hook magit-section installs,
+so the test asks for the update that hook would have asked for."
+  (revu-fixture-goto-line-matching regexp)
+  (magit-section-update-highlight t))
+
+(defun revu-fixture-face-on-screen (regexp)
+  "Return the face showing on the text REGEXP matches.
+Reads overlays as well as text properties, because the current-section
+highlight is an overlay: a test that read only the text property would
+pass over a line whose colour the highlight has covered."
+  (save-excursion
+    (goto-char (point-min))
+    (should (re-search-forward regexp nil t))
+    (get-char-property (match-beginning 0) 'font-lock-face)))
+
 (defun revu-fixture-hidden-on-screen-p (section)
   "Return non-nil while the body of SECTION is invisible on screen.
 The `hidden' slot is magit-section's model of visibility and nothing

@@ -129,10 +129,31 @@ new work."
   "Face of the badge on an Annotation whose Anchor was not found at all."
   :group 'revu)
 
-(defclass revu-file-section (magit-section) ()
+(defclass revu-section (magit-section) ()
+  "The parent of every section revu renders.
+It exists so that what revu asks of magit-section is asked once rather
+than once per class.")
+
+(cl-defmethod magit-section-highlight ((section revu-section))
+  "Highlight the heading of SECTION and stop there.
+magit-section covers a section body and all when point is in it, which
+flattens the faces the render put on what the reviewer is reading: the
+Origin of a diff line, and the Reply that tells an answered Annotation
+from an unanswered one (ADR-0007).  Revu keeps the affordance and drops
+the cover.
+
+Specialising this generic is the extension point magit-section offers,
+which is the boundary ADR-0008 drew.  No face is passed, so the heading
+takes whatever the reviewer has themed `magit-section-highlight' to:
+revu has no opinion about what \"you are here\" should look like."
+  (magit-section-highlight-range (oref section start)
+                                 (or (oref section content)
+                                     (oref section end))))
+
+(defclass revu-file-section (revu-section) ()
   "The section holding one file of the Source under review.")
 
-(defclass revu-hunk-section (magit-section)
+(defclass revu-hunk-section (revu-section)
   ((index :initarg :index :initform nil))
   "The section holding one hunk of a file under review.
 INDEX is the hunk's ordinal position among the hunks its file was parsed
@@ -148,7 +169,7 @@ what keeps a fold across the very edit reload exists to show (ADR-0012).
 The visibility cache is keyed on this one."
   (cons (car (oref section value)) (oref section index)))
 
-(defclass revu-annotation-section (magit-section) ()
+(defclass revu-annotation-section (revu-section) ()
   "The section holding one Annotation.
 Its value is the Annotation's ULID, which is the Annotation's identity:
 two Annotations on one Target are two sections, and point can rest on
