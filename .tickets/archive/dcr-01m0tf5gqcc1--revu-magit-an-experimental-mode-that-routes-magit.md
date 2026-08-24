@@ -1,12 +1,13 @@
 ---
 id: dcr-01m0tf5gqcc1
 title: 'revu-magit: an experimental mode that routes magit''s diff commands into a Review'
-status: open
+status: closed
 type: feature
 priority: 2
 mode: afk
 created: '2026-08-24T18:05:19.977014267Z'
-updated: '2026-08-24T18:48:45.996997764Z'
+updated: '2026-08-24T18:50:16.081784130Z'
+closed: '2026-08-24T18:50:16.081784130Z'
 acceptance:
 - title: revu-magit-mode enable installs the advice and the transient switch; disable removes both, and a magit without the mode is untouched
   done: false
@@ -41,3 +42,11 @@ New file revu-magit.el, autoloaded mode only; (require 'magit) inside the mode's
 **2026-08-24T18:48:45.996997764Z**
 
 Deviation from the acceptance line 'every other diff argument is dropped with a message when any were set': magit always passes its own defaults --stat and --no-ext-diff, so reporting literally every argument would put a message on every single invocation. Those two pass unremarked -- --stat asks for a summary section revu does not render, and revu's own diffs already pass --no-ext-diff, so neither changes how a change is cut. Everything else is named. Recorded in ADR-0013.
+
+**2026-08-24T18:50:16.081784130Z**
+
+revu-magit.el: a global minor mode, off by default, that appends a 'Review in revu' switch to the magit-diff transient and advises magit's diff-setup funnels. The mapping lives in revu-magit-plan and revu-magit-revision-plan, which never touch magit; 19 tests cover it with magit absent, against the fixture repo for merge-base and rev-parse. Magit is a build/lint dependency only.
+
+Three findings the design did not anticipate. (1) Stashes needed a third advice: magit-stash-show has its own funnel, magit-stash-setup-buffer, and never reaches magit-diff-setup-buffer. (2) The switch would have surfaced in magit-diff-refresh (D) through the shared magit-diff-infix-arguments group, so it is appended beside the transient's own actions instead; verified with magit 4.7 that disable restores magit-diff's layout exactly and leaves magit-diff-refresh's untouched. (3) Magit always passes --stat and --no-ext-diff, so those two are dropped unremarked -- see the note above.
+
+Object ids are abbreviated through git rev-parse --short, which is the length magit's log shows. The worktree and staged Sources are both against HEAD, so a prefix-argument revision is compared as the commit it names and refused when it is another one. ADR-0013 amended with the stash funnel, the switch placement, the corrected magit-revision-setup-buffer signature and the version guard. 228 tests pass; compile and lint clean.
