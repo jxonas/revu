@@ -67,8 +67,20 @@ read.
 _Avoid_: Database, save file, dump
 
 **Source**:
-The thing under review: a diff or a plain file.
+The thing under review: a diff or a plain file. A diff Source may carry a
+Narrowing.
 _Avoid_: Input, document, subject
+
+**Narrowing**:
+The pathspecs a diff Source is limited to. A narrowed Source is a different
+Source, with its own Review, from the full one over the same Revisions; no
+Narrowing means every path.
+_Avoid_: Filter, file selection, scope
+
+**Bridge**:
+An opt-in door from another tool's own commands into a Review, mapping what
+that tool was about to show onto a Source. The magit Bridge is the only one.
+_Avoid_: Integration, plugin, extension
 
 **Export**:
 A rendering of a Review in a consumer-facing format, such as revdiff markdown.

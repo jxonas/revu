@@ -36,3 +36,26 @@ agent can read the file at any moment".
 `.revu/` is personal working state in v0 (no `author` field, one reviewer):
 documentation recommends git-ignoring it, and revu never edits the user's
 `.gitignore` itself.
+
+## Amendment: a Source may be narrowed by pathspecs
+
+A diff Source may carry `paths`, a list of git pathspecs, added for the magit
+bridge (ADR-0013): `{"kind": "range", "base": "…", "head": "…", "paths":
+["src/foo/", "docs/"]}`. Absent means every path. Reading the Source again
+(`revu-reload`) replays the pathspecs, so a narrowed Review stays narrowed;
+the alternative, where the first reload widens the diff and re-anchors every
+Annotation against it, is the one-shot bridge this amendment exists to
+prevent. Nothing else about how the diff is cut is recorded: context count,
+whitespace and rename handling stay pinned by revu, because the Reviewed-mark
+digests and Path resolution key on them.
+
+A narrowed Source derives a different Review name: the revisions' name with
+a slug of the pathspecs appended, `main..feature--src-foo--docs`. The same
+narrowing resumes the same Review; the full Review over the same revisions is
+a different sidecar and is left alone.
+
+No schema bump: `paths` is optional, and a flat-integer bump would refuse
+every v1 reader for one optional field. The known cost is a revu older than
+this amendment reading a narrowed sidecar, ignoring `paths`, and rendering
+the full diff. The field is experimental with ADR-0013 and may be dropped
+with it.
