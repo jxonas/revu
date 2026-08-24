@@ -98,7 +98,7 @@
       (should (= 1 (length (revu-fixture-sections 'revu-file-section))))
       (should (null (revu-fixture-sections 'revu-hunk-section)))
       (let ((rendered (revu-fixture-render)))
-        (should (string-match-p "^README\\.md$" rendered))
+        (should (string-match-p "^README\\.md" rendered))
         (should (string-match-p "^   1 # Fixture$" rendered))
         (should (string-match-p "^   3 Untouched by any diff\\.$" rendered))))))
 
@@ -109,7 +109,7 @@
     (with-current-buffer (revu-buffer-name "plain")
       (revu-fixture-goto-line-matching "^   1 # Fixture$")
       (let ((line (point)))
-        (revu-fixture-goto-line-matching "^README\\.md$")
+        (revu-fixture-goto-line-matching "^README\\.md")
         (revu-fixture-press-tab)
         (should (invisible-p line))
         (revu-fixture-press-tab)
@@ -236,12 +236,12 @@ the render name a change to the file nobody made."
       (revu-reload)
       (let ((rendered (revu-fixture-render)))
         ;; The heading names the file and claims nothing about a diff.
-        (should (string-match-p "^README\\.md$" rendered))
+        (should (string-match-p "^README\\.md" rendered))
         (should-not (string-match-p "modified" rendered))
         (should-not (string-match-p "deleted" rendered))
         (should (string-match-p "note \\[orphaned\\]" rendered)))
       ;; And there is nothing left to call read.
-      (revu-fixture-goto-line-matching "^README\\.md$")
+      (revu-fixture-goto-line-matching "^README\\.md")
       (should-error (revu-reviewed-toggle) :type 'user-error))))
 
 ;;;; Reviewed
@@ -251,7 +251,7 @@ the render name a change to the file nobody made."
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^README\\.md$")
+      (revu-fixture-goto-line-matching "^README\\.md")
       (revu-reviewed-toggle))
     (let ((marks (revu-review-marks (revu-fixture-sidecar root "plain"))))
       (should (= 1 (seq-length marks)))
@@ -260,7 +260,7 @@ the render name a change to the file nobody made."
                      (revu-digest revu-plain-test-readme))))
     ;; Toggling again takes the assertion back.
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^README\\.md$")
+      (revu-fixture-goto-line-matching "^README\\.md")
       (revu-reviewed-toggle))
     (should (= 0 (seq-length
                   (revu-review-marks (revu-fixture-sidecar root "plain")))))))
@@ -270,7 +270,7 @@ the render name a change to the file nobody made."
   (revu-fixture-in-repo root
     (revu-file (expand-file-name "README.md" root) "plain")
     (with-current-buffer (revu-buffer-name "plain")
-      (revu-fixture-goto-line-matching "^README\\.md$")
+      (revu-fixture-goto-line-matching "^README\\.md")
       (revu-reviewed-toggle)
       (let ((review (revu-review)))
         (should (revu-reviewed-p review revu--files "README.md")))
@@ -280,6 +280,29 @@ the render name a change to the file nobody made."
       (revu-fixture-write-file root "README.md" revu-plain-test-readme)
       (revu-reload)
       (should (revu-reviewed-p (revu-review) revu--files "README.md")))))
+
+(ert-deftest revu-plain-badges-its-file-heading-with-the-reviewed-state ()
+  "A plain file wears the state on the one heading it has (ADR-0011).
+There are no hunks to divide it, so there is no partial state to count:
+the file is read, or it was read and has changed, or it has not been
+read.  The path is the mark\'s locality, so a mark on it that no longer
+matches is about this file and nothing else."
+  (revu-fixture-in-repo root
+    (revu-file (expand-file-name "README.md" root) "plain")
+    (with-current-buffer (revu-buffer-name "plain")
+      (should-not (string-match-p revu-render-reviewed-glyph
+                                  (revu-fixture-render)))
+      (revu-fixture-goto-line-matching "^README\\.md")
+      (revu-reviewed-toggle)
+      (should (string-match-p (concat "^README\\.md +"
+                                      revu-render-reviewed-glyph "$")
+                              (revu-fixture-render)))
+      ;; Edited under the reviewer, it says it was read and has changed.
+      (revu-fixture-write-file root "README.md" "# Fixture\n\nEdited.\n")
+      (revu-reload)
+      (should (string-match-p (concat "^README\\.md +"
+                                      revu-render-stale-glyph "$")
+                              (revu-fixture-render))))))
 
 (provide 'revu-plain-test)
 ;;; revu-plain-test.el ends here

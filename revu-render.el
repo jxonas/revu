@@ -38,6 +38,11 @@
 ;; because magit-section's visibility cache resolves it again, not
 ;; because the old overlay was left alone -- there is no old buffer.
 ;;
+;; A heading carries the Reviewed state of what it opens, as a glyph the
+;; render is handed rather than derives: `revu-reviewed.el' decides, this
+;; file draws.  The glyph is heading text and not a fold, so it survives
+;; opening a collapsed section and owes nothing to the view toggles.
+;;
 ;; Every source line carries a `revu-target' text property -- its path, its
 ;; number and its Origin -- so a command can tell what the reviewer is
 ;; pointing at, and a dim line-number prefix, because reviewers talk to
@@ -84,6 +89,22 @@
 A Reply has a face of its own because its presence is the answered
 signal (ADR-0007): the reviewer tells an answered Annotation from an
 unanswered one by reading the buffer."
+  :group 'revu)
+
+(defface revu-reviewed
+  '((t :inherit shadow))
+  "Face of a heading whose region has been marked Reviewed, and of its glyph.
+Recessive on purpose: a Reviewed mark exists to get read work out of the
+reviewer's way, so what it marks should recede rather than call out."
+  :group 'revu)
+
+(defface revu-stale
+  '((t :inherit warning))
+  "Face of the glyph on a heading whose region was read and has changed since.
+Not recessive, and deliberately so.  This is the one Reviewed state that
+misleads by staying quiet: a region an agent rewrote under the reviewer
+looks exactly like code nobody has read, so rework cannot be told from
+new work."
   :group 'revu)
 
 (defface revu-moved
@@ -184,6 +205,46 @@ recorded rather than rewriting it later."
       'revu-target (list (if (equal origin "removed") old-path path)
                          number origin)))))
 
+(defconst revu-render-reviewed-glyph "\N{CHECK MARK}"
+  "Glyph marking a heading whose region matches a Reviewed mark.")
+
+(defconst revu-render-stale-glyph "\N{NOT EQUAL TO}"
+  "Glyph marking a heading whose region was read and no longer matches its mark.
+It says what is the matter rather than that something is: the content is
+not what the reviewer read.")
+
+(defun revu-render--reviewed-badge (reviewed)
+  "Return the badge naming REVIEWED, or nil when there is nothing to say.
+REVIEWED is (STATE . PROGRESS) as `revu-reviewed-state-p\' returns it:
+`reviewed\', `stale\' or nil, and how many of a file\'s hunks match out of
+how many it has.  A file part-way read carries the count, because how
+much of this file is left is the question being asked of it; a file that
+is read, or has not been touched, says so with its glyph alone."
+  (let* ((state (car reviewed))
+         (progress (cdr reviewed))
+         (glyph (pcase state
+                  ('reviewed revu-render-reviewed-glyph)
+                  ('stale revu-render-stale-glyph)))
+         (count (when (and progress
+                           (> (car progress) 0)
+                           (< (car progress) (cdr progress)))
+                  (format "%d/%d" (car progress) (cdr progress))))
+         (text (string-join (delq nil (list glyph count)) " ")))
+    (unless (string-empty-p text)
+      (propertize text 'font-lock-face
+                  (if (eq state 'stale) 'revu-stale 'revu-reviewed)))))
+
+(defun revu-render--heading (text face reviewed)
+  "Return the heading TEXT in FACE, carrying the badge for REVIEWED.
+The badge is part of the heading and not of the section\'s body, which is
+what makes a Reviewed mark visible whether the section is folded or open:
+collapsing is one of the two things marking does, and never the only sign
+that it happened."
+  (let ((badge (revu-render--reviewed-badge reviewed)))
+    (concat (propertize text 'font-lock-face
+                        (if (eq (car reviewed) 'reviewed) 'revu-reviewed face))
+            (and badge (concat "  " badge)))))
+
 (defconst revu-render--annotation-indent "    "
   "What an Annotation's heading is indented by under the line it is about.")
 
@@ -276,7 +337,7 @@ filter keeps it findable."
               (revu-render--placements-at placements (nth 1 line) (nth 0 line)))
             (revu-diff-hunk-lines hunk)))
 
-(defun revu-render-diff (files &optional hidden-p placements keep-p)
+(defun revu-render-diff (files &optional hidden-p placements keep-p state-p)
   "Render FILES, a list of `revu-diff-file', into the current buffer.
 HIDDEN-P is called with the value of each file and hunk section and
 decides whether that section is rendered collapsed; a Reviewed mark
@@ -286,8 +347,10 @@ sections under the lines they are about.  KEEP-P is called with the value
 of each file and hunk section and with whether any Annotation is on it,
 and decides whether that section is rendered at all; the buffer's view
 filters shape the render through it, and a nil KEEP-P renders the whole
-Source.  Point is left where the same section, or failing that the same
-line, held it before."
+Source.  STATE-P is called with the value of each file and hunk section
+and returns the Reviewed state to badge its heading with; the render
+knows marks only through it.  Point is left where the same section, or
+failing that the same line, held it before."
   (let* ((inhibit-read-only t)
          ;; A section's `start', `content' and `end' are plain positions
          ;; here, not the markers magit-section makes by default.  That is
@@ -333,8 +396,9 @@ line, held it before."
                                    path
                                    (and hidden-p (funcall hidden-p path)))
               (magit-insert-heading
-                (propertize (revu-render--file-heading file)
-                            'font-lock-face 'revu-file-heading))
+                (revu-render--heading (revu-render--file-heading file)
+                                      'revu-file-heading
+                                      (and state-p (funcall state-p path))))
               (dolist (placement (revu-render--unplaced mine file))
                 (revu-render-annotation placement))
               (dolist (hunk hunks)
@@ -348,8 +412,10 @@ line, held it before."
                                            (and hidden-p
                                                 (funcall hidden-p value)))
                       (magit-insert-heading
-                        (propertize (revu-diff-hunk-header hunk)
-                                    'font-lock-face 'revu-hunk-heading))
+                        (revu-render--heading (revu-diff-hunk-header hunk)
+                                              'revu-hunk-heading
+                                              (and state-p
+                                                   (funcall state-p value))))
                       (revu-render--lines hunk file width mine))))))))))
     ;; Building the tree only resolves each section's visibility into its
     ;; `hidden' slot; what hides text is an invisible overlay, and only

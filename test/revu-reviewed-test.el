@@ -178,7 +178,7 @@ under it changed; a mark per hunk cannot."
     (revu-reviewed-test--two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (should (equal (length (revu-reviewed-test--hunk-sections "alpha.txt")) 2))
-      (revu-fixture-goto-line-matching "^modified   alpha\\.txt$")
+      (revu-fixture-goto-line-matching "^modified   alpha\\.txt")
       (revu-reviewed-toggle)
       (let ((marks (revu-reviewed-test--marks root "worktree")))
         (should (equal (length marks) 2))
@@ -189,7 +189,7 @@ under it changed; a mark per hunk cannot."
                               revu-reviewed-test--second-alpha-hunk)))))
       (should (oref (revu-reviewed-test--section "alpha.txt") hidden))
       ;; Toggling the file again drops every mark it took.
-      (revu-fixture-goto-line-matching "^modified   alpha\\.txt$")
+      (revu-fixture-goto-line-matching "^modified   alpha\\.txt")
       (revu-reviewed-toggle)
       (should (equal (revu-reviewed-test--marks root "worktree") nil))
       (should-not (oref (revu-reviewed-test--section "alpha.txt") hidden)))))
@@ -271,6 +271,132 @@ on, and drops out as soon as hide-reviewed joins it."
       (revu-reviewed-toggle-hide-reviewed)
       (should (string-match-p "alpha\\.txt" (revu-fixture-render)))
       (should (string-match-p "beta\\.txt" (revu-fixture-render))))))
+
+(defun revu-reviewed-test--heading (regexp)
+  "Return the whole rendered line whose start matches REGEXP."
+  (save-excursion
+    (goto-char (point-min))
+    (should (re-search-forward regexp nil t))
+    (buffer-substring-no-properties (line-beginning-position)
+                                    (line-end-position))))
+
+(ert-deftest revu-reviewed-badges-the-heading-of-what-was-read ()
+  "A reviewed hunk says so on its heading, whatever its fold is doing.
+Collapsing is one of the two things marking does and never the only sign
+that it happened: the badge is part of the heading, so opening the
+section again to re-read it leaves the mark on screen."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (should-not (string-match-p revu-render-reviewed-glyph
+                                  (revu-fixture-render)))
+      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-reviewed-toggle)
+      (let ((section (car (revu-reviewed-test--hunk-sections "alpha.txt"))))
+        (should (string-suffix-p revu-render-reviewed-glyph
+                                 (revu-reviewed-test--heading "^@@")))
+        ;; Opening it again to re-read it keeps the badge.
+        (goto-char (oref section start))
+        (revu-fixture-press-tab)
+        (should-not (revu-fixture-hidden-on-screen-p
+                     (car (revu-reviewed-test--hunk-sections "alpha.txt"))))
+        (should (string-suffix-p revu-render-reviewed-glyph
+                                 (revu-reviewed-test--heading "^@@")))))))
+
+(ert-deftest revu-reviewed-badges-a-hunk-read-and-changed-since-as-stale ()
+  "A hunk the reviewer read and something else changed reads as stale.
+Silence is what misleads here: without the badge the hunk is
+pixel-identical to code nobody has read, so rework cannot be told from
+new work."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-reviewed-toggle))
+    (revu-fixture-write-file
+     root "alpha.txt"
+     (replace-regexp-in-string "alpha four" "alpha four edited"
+                               (revu-fixture-file-contents root "alpha.txt")
+                               t t))
+    (revu-fixture-kill-review-buffers)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((heading (revu-reviewed-test--heading "^@@")))
+        (should (string-suffix-p revu-render-stale-glyph heading))
+        (should-not (string-match-p revu-render-reviewed-glyph heading))))))
+
+(ert-deftest revu-reviewed-leaves-a-hunk-nobody-read-unbadged ()
+  "A hunk beside a stale one, that was never read, is not called stale.
+The mark records the base lines it was taken over, so an assertion that
+has stopped holding is attributed to the hunk that grew out of those
+lines and to no other.  Calling new work rework is the same lie as
+calling rework new."
+  (revu-fixture-in-repo root
+    (revu-reviewed-test--two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-reviewed-toggle))
+    (revu-fixture-write-file
+     root "alpha.txt"
+     (replace-regexp-in-string "alpha one changed" "alpha one changed twice"
+                               (revu-fixture-file-contents root "alpha.txt")
+                               t t))
+    (revu-fixture-kill-review-buffers)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((review (revu-review))
+            (sections (revu-reviewed-test--hunk-sections "alpha.txt")))
+        (should (equal (length sections) 2))
+        (should (equal (revu-reviewed-state review revu--files
+                                            (oref (nth 0 sections) value))
+                       'stale))
+        (should (equal (revu-reviewed-state review revu--files
+                                            (oref (nth 1 sections) value))
+                       nil))))))
+
+(ert-deftest revu-reviewed-attributes-nothing-to-a-mark-with-no-span ()
+  "A mark taken before revu recorded spans attributes to no hunk.
+A Sidecar written by an older revu says which file was read and not which
+lines, so the hunk that changed cannot be told from the one beside it.
+The render says nothing rather than guessing which of them to accuse."
+  (revu-fixture-in-repo root
+    (revu-reviewed-test--two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-reviewed-toggle))
+    ;; Rewrite the Sidecar as an older revu would have left it.
+    (let ((file (expand-file-name ".revu/worktree.json" root)))
+      (with-temp-file file
+        (insert (replace-regexp-in-string
+                 "\"span\": *\\[[0-9]+, *[0-9]+\\], *" ""
+                 (revu-fixture-sidecar-text root "worktree")))))
+    (revu-fixture-write-file
+     root "alpha.txt"
+     (replace-regexp-in-string "alpha one changed" "alpha one changed twice"
+                               (revu-fixture-file-contents root "alpha.txt")
+                               t t))
+    (revu-fixture-kill-review-buffers)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (should-not (revu-mark-span
+                   (car (revu-reviewed-test--marks root "worktree"))))
+      (should-not (string-match-p revu-render-stale-glyph
+                                  (revu-fixture-render))))))
+
+(ert-deftest revu-reviewed-file-heading-counts-the-hunks-that-match ()
+  "A file part-way read says how much of it is left, not that it is neither.
+Working down a large file is the case Reviewed marks exist for, and how
+many of its hunks are read is the question being asked of its heading."
+  (revu-fixture-in-repo root
+    (revu-reviewed-test--two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (should-not (string-match-p "/" (revu-reviewed-test--heading
+                                       "^modified   alpha\\.txt")))
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-reviewed-toggle)
+      (should (string-suffix-p "1/2" (revu-reviewed-test--heading
+                                      "^modified   alpha\\.txt")))
+      ;; Reading the rest of it leaves the glyph to say so on its own.
+      (revu-fixture-goto-line-matching "^ +10 \\+alpha ten changed$")
+      (revu-reviewed-toggle)
+      (let ((heading (revu-reviewed-test--heading "^modified   alpha\\.txt")))
+        (should (string-suffix-p revu-render-reviewed-glyph heading))
+        (should-not (string-match-p "/" heading))))))
 
 (provide 'revu-reviewed-test)
 ;;; revu-reviewed-test.el ends here

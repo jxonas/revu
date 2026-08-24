@@ -120,7 +120,8 @@ from today's file content on every render and never persisted."
     (revu-render-diff revu--files
                       (revu-reviewed-hidden-p review revu--files)
                       (revu-annotate-placements review default-directory)
-                      (revu-reviewed-keep-p review revu--files))))
+                      (revu-reviewed-keep-p review revu--files)
+                      (revu-reviewed-state-p review revu--files))))
 
 (defun revu--file-content (file)
   "Return the content of FILE, or nil when there is no such file.

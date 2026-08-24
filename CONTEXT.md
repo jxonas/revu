@@ -43,14 +43,17 @@ _Avoid_: Response, resolution, comment
 
 **Reviewed mark**:
 The persisted assertion that the reviewer has read a region, recorded as a
-content digest taken when marking.
+content digest taken when marking, with the base-file lines the region
+covered. The digest is the mark's identity; the lines are only its locality,
+and say which region an assertion that has stopped holding was about.
 _Avoid_: Seen, viewed, checked-off
 
 **Reviewed state**:
 Where a region stands against the Reviewed marks at load time: `reviewed`
 when a mark's digest matches its content, `stale` when a mark was taken over
 it but no longer matches, and `unreviewed` when none was ever taken. Derived
-on load, like Anchor state and Path resolution; never persisted.
+on load, like Anchor state and Path resolution; never persisted. Rendered as
+a glyph on the region's heading, so it does not depend on a fold.
 _Avoid_: Read status, seen state, staleness flag
 
 **Revision**:

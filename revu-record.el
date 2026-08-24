@@ -390,11 +390,20 @@ is what a decoded JSON array is."
 
 ;;;; Reviewed marks
 
-(defun revu-mark-create (path digest &optional time)
+(defun revu-mark-create (path digest &optional span time)
   "Return a Reviewed mark on PATH asserting that DIGEST was read, at TIME.
 TIME defaults to now.  The digest is the mark's identity: the region is
-reviewed exactly while its content still hashes to it (ADR-0009)."
-  `((path . ,path) (digest . ,digest) (created . ,(revu-timestamp time))))
+reviewed exactly while its content still hashes to it (ADR-0009).
+
+SPAN is the (START . END) of the base-file lines the region covered when
+the mark was taken, END exclusive.  It is locality and not identity: it
+says nothing about whether the assertion still holds, and is what lets a
+mark that has stopped matching be attributed to the hunk that grew out of
+the lines it was taken over.  A plain file needs none -- the path is the
+locality -- and a mark taken before revu recorded spans has none."
+  (append `((path . ,path) (digest . ,digest))
+          (when span `((span . ,(vector (car span) (cdr span)))))
+          `((created . ,(revu-timestamp time)))))
 
 (defun revu-mark-path (mark)
   "Return the path MARK was taken on.
@@ -405,6 +414,14 @@ mark still matches content that moved to another path."
 (defun revu-mark-digest (mark)
   "Return the digest of the content MARK asserts was read."
   (alist-get 'digest mark))
+
+(defun revu-mark-span (mark)
+  "Return the base-file lines MARK was taken over, as (START . END).
+Return nil for a mark that records none: a plain-file mark, whose path is
+its locality, and a mark taken before revu recorded spans."
+  (let ((span (alist-get 'span mark)))
+    (when (and (vectorp span) (equal (length span) 2))
+      (cons (aref span 0) (aref span 1)))))
 
 (defun revu-mark-created (mark)
   "Return the timestamp MARK was taken at."
@@ -516,7 +533,12 @@ rather than tell the reviewer anything, so it refuses the Sidecar like
 any other malformed record."
   (revu--check (revu--object-p mark) "reviewed[%d] is not an object" index)
   (revu--check (stringp (revu-mark-digest mark))
-               "reviewed[%d] has no digest to match content against" index))
+               "reviewed[%d] has no digest to match content against" index)
+  (let ((span (alist-get 'span mark)))
+    (revu--check (or (null span)
+                     (and (vectorp span) (equal (length span) 2)
+                          (integerp (aref span 0)) (integerp (aref span 1))))
+                 "reviewed[%d] has a span that is not two line numbers" index)))
 
 (defun revu-review-validate (review)
   "Signal unless REVIEW is a valid schema v1 Review; return REVIEW.

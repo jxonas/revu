@@ -38,8 +38,20 @@
 ;; numbers around it regenerate on every `git diff' and are no part of
 ;; what the reviewer read.
 ;;
-;; Marking collapses what it marks and moves the reviewer on to the next
-;; hunk they have not read.  Two buffer-local filters -- annotated-only
+;; Where a region stands against the marks is its Reviewed state, derived
+;; on every render and never persisted: `reviewed' while its content
+;; matches a mark, `stale' while a mark was taken over it and no longer
+;; matches it, and unreviewed while none was ever taken.  Telling stale
+;; from unreviewed is what the mark's span is for -- a digest that matches
+;; nothing says something under this path was read and changed, and the
+;; span says which region it was, so a hunk an agent rewrote under the
+;; reviewer is not confused with one nobody has read.
+;;
+;; Marking collapses what it marks, badges its heading with the state, and
+;; moves the reviewer on to the next hunk they have not read.  Collapse is
+;; never the only sign that a mark was taken: it is ambiguous against a
+;; fold the reviewer made by hand, it goes when the section is opened
+;; again, and it is not there at all with hide-reviewed off.  Two buffer-local filters -- annotated-only
 ;; and hide-reviewed -- shape the render and compose: reviewed and
 ;; annotated are orthogonal, so a hunk with an open question can be
 ;; marked reviewed and still be found by the annotated-only filter.
@@ -101,18 +113,47 @@ is the path and the `@@' header the hunk was rendered with."
   "Return the path the section valued VALUE belongs to."
   (if (consp value) (car value) value))
 
-(defun revu-reviewed--digests (files value)
-  "Return the digests the section of FILES valued VALUE is read by.
+(defun revu-reviewed-hunk-span (hunk)
+  "Return the base-file lines HUNK covers, as (START . END), END exclusive.
+The base side is the one that holds still: a diff is taken against a
+pinned Revision, so editing the worktree moves a hunk on the new side
+while leaving the old lines it grew out of where they were.  That is what
+makes the span usable for saying which mark a changed hunk came from.
+
+A hunk that only adds lines covers no base line at all.  Its span is the
+one line it was inserted at, so a mark taken over that line can still be
+attributed to it rather than to nothing."
+  (let ((start (revu-diff-hunk-old-start hunk))
+        (covered (seq-count (lambda (line) (not (equal (nth 0 line) "added")))
+                            (revu-diff-hunk-lines hunk))))
+    (cons start (+ start (max covered 1)))))
+
+(defun revu-reviewed--spans-overlap-p (one other)
+  "Return non-nil when the spans ONE and OTHER cover a base line in common."
+  (and one other
+       (< (car one) (cdr other))
+       (< (car other) (cdr one))))
+
+(defun revu-reviewed--assertions (files value)
+  "Return what the section of FILES valued VALUE is read by, as (DIGEST . SPAN).
 A diff is read hunk by hunk, so a section covering several of them is
-asserted one digest at a time.  A plain file has no hunks to divide it,
-so the assertion degrades to a single digest over the whole content the
-reviewer read, verbatim (ADR-0009, ADR-0011)."
+asserted one digest at a time, each with the base lines that hunk covers.
+A plain file has no hunks to divide it, so the assertion degrades to a
+single digest over the whole content the reviewer read, verbatim, and to
+no span: the path is all the locality it has (ADR-0009, ADR-0011)."
   (let ((file (revu-reviewed--file files (revu-reviewed--path value))))
     (if (and file (revu-diff-file-plain file))
         ;; A file that is gone has no content to have been read.
         (when (revu-diff-file-content file)
-          (list (revu-digest (revu-diff-file-content file))))
-      (mapcar #'revu-reviewed-hunk-digest (revu-reviewed--hunks files value)))))
+          (list (cons (revu-digest (revu-diff-file-content file)) nil)))
+      (mapcar (lambda (hunk)
+                (cons (revu-reviewed-hunk-digest hunk)
+                      (revu-reviewed-hunk-span hunk)))
+              (revu-reviewed--hunks files value)))))
+
+(defun revu-reviewed--digests (files value)
+  "Return the digests the section of FILES valued VALUE is read by."
+  (mapcar #'car (revu-reviewed--assertions files value)))
 
 ;;;; Whether a mark still holds
 
@@ -133,6 +174,72 @@ been taken over."
                           (not (revu-reviewed--marked-p review digest)))
                         digests)))))
 
+;;;; Which of the three states a region is in
+
+(defun revu-reviewed--dangling (review files path)
+  "Return every mark of REVIEW on PATH that no region FILES renders matches.
+These are the assertions the reviewer made that no longer hold: what was
+read under PATH is not there any more.  Which region each one was about
+is what the mark's span says."
+  (let ((digests (revu-reviewed--digests files path)))
+    (seq-filter (lambda (mark)
+                  (and (equal (revu-mark-path mark) path)
+                       (not (member (revu-mark-digest mark) digests))))
+                (revu-review-marks review))))
+
+(defun revu-reviewed--stale-p (review files value)
+  "Return non-nil when the section of FILES valued VALUE was read and changed.
+A region is stale when a mark of REVIEW was taken over it and no longer
+matches it.
+For a plain file the path is the locality, so any unmatched mark on it is
+about the file.  For a hunk it takes the mark's span: the hunk is stale
+while some unmatched mark on its path was taken over base lines this hunk
+still covers, which is what tells a hunk the reviewer read and an agent
+then changed from a hunk they never read at all.  A mark carrying no span
+attributes to nothing -- it is better to call read work new than to call
+new work read."
+  (let* ((path (revu-reviewed--path value))
+         (dangling (revu-reviewed--dangling review files path)))
+    (when dangling
+      (let ((file (revu-reviewed--file files path)))
+        (if (and file (revu-diff-file-plain file))
+            t
+          (and (seq-find
+                (lambda (assertion)
+                  (and (not (revu-reviewed--marked-p review (car assertion)))
+                       (seq-find (lambda (mark)
+                                   (revu-reviewed--spans-overlap-p
+                                    (revu-mark-span mark) (cdr assertion)))
+                                 dangling)))
+                (revu-reviewed--assertions files value))
+               t))))))
+
+(defun revu-reviewed-state (review files value)
+  "Return the Reviewed state of the section of FILES valued VALUE, in REVIEW.
+The Reviewed state is `reviewed' when every region under VALUE matches a
+mark, `stale' when one of them was read and has changed since, and nil
+when none was ever read.  It is derived here on every render and never
+persisted, like Anchor state and Path resolution before it."
+  (cond ((revu-reviewed-p review files value) 'reviewed)
+        ((revu-reviewed--stale-p review files value) 'stale)))
+
+(defun revu-reviewed-progress (review files value)
+  "Return how much of the file of FILES valued VALUE has been read, in REVIEW.
+It is (READ . ALL), the hunks matching a mark out of the hunks there are.
+Return nil unless VALUE is a file with more than one hunk to divide it: a
+plain file is read or it is not, and a one-hunk file says the same thing
+its glyph already says.  Working down a large file is the case this
+answers -- three of five hunks read is neither reviewed nor untouched."
+  (unless (consp value)
+    (let ((file (revu-reviewed--file files value)))
+      (unless (and file (revu-diff-file-plain file))
+        (let ((digests (revu-reviewed--digests files value)))
+          (when (> (length digests) 1)
+            (cons (seq-count (lambda (digest)
+                               (revu-reviewed--marked-p review digest))
+                             digests)
+                  (length digests))))))))
+
 ;;;; The render predicates
 
 (defun revu-reviewed-hidden-p (review files)
@@ -140,6 +247,15 @@ been taken over."
 A reviewed section comes back collapsed, which is what gets read work out
 of the reviewer's way; REVIEW holds the marks that decide it."
   (lambda (value) (revu-reviewed-p review files value)))
+
+(defun revu-reviewed-state-p (review files)
+  "Return the function saying how a section of FILES renders its Reviewed state.
+It is called with a section's value and returns (STATE . PROGRESS), which
+is all the render needs to know about marks: the render draws headings
+and REVIEW is what decides them."
+  (lambda (value)
+    (cons (revu-reviewed-state review files value)
+          (revu-reviewed-progress review files value))))
 
 (defun revu-reviewed-keep-p (review files)
   "Return the predicate saying which sections of FILES render at all.
@@ -167,11 +283,16 @@ region the reviewer can see, and nothing else is one."
       (setq section (oref section parent)))
     (or section (user-error "Point is not in a hunk or a file"))))
 
-(defun revu-reviewed--mark (review path digests)
-  "Return REVIEW with a mark on PATH for each of DIGESTS it lacks."
-  (dolist (digest digests review)
-    (unless (revu-reviewed--marked-p review digest)
-      (setq review (revu-review-add-mark review (revu-mark-create path digest))))))
+(defun revu-reviewed--mark (review path assertions)
+  "Return REVIEW with a mark on PATH for each of ASSERTIONS it lacks.
+Each mark records the base lines its region covered as well as its
+digest, so a mark that stops matching can still be attributed to the hunk
+that grew out of those lines."
+  (dolist (assertion assertions review)
+    (unless (revu-reviewed--marked-p review (car assertion))
+      (setq review (revu-review-add-mark
+                    review
+                    (revu-mark-create path (car assertion) (cdr assertion)))))))
 
 (defun revu-reviewed--unmark (review digests)
   "Return REVIEW without any Reviewed mark asserting one of DIGESTS."
@@ -223,17 +344,18 @@ content that has since changed is left where it is."
   (let* ((section (revu-reviewed--section-at-point))
          (value (oref section value))
          (files revu--files)
-         (digests (revu-reviewed--digests files value))
+         (assertions (revu-reviewed--assertions files value))
          (review (revu-review)))
-    (unless digests
+    (unless assertions
       (user-error "There is nothing here to mark reviewed"))
     (let ((marking (not (revu-reviewed-p review files value))))
       (revu-sidecar-write revu--sidecar
                           (if marking
                               (revu-reviewed--mark review
                                                    (revu-reviewed--path value)
-                                                   digests)
-                            (revu-reviewed--unmark review digests)))
+                                                   assertions)
+                            (revu-reviewed--unmark review
+                                                   (mapcar #'car assertions))))
       ;; What the reviewer folded by hand outranks the HIDE a render
       ;; derives from the marks, and rightly so -- but where the marks
       ;; have just changed, they have the last word.  Forgetting the folds
