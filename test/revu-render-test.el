@@ -346,5 +346,80 @@ against -- which is what re-locates a removed line later (ADR-0003)."
       (should (equal (revu-annotation-body (seq-elt annotations 0))
                      "written yesterday")))))
 
+(ert-deftest revu-render-leaves-point-on-the-line-the-reviewer-was-on ()
+  "A render puts point back on the reviewer's line, column and all.
+The line is named by the `revu-target' it carries, not by where it sat:
+the Annotation this render adds is inserted under that very line, so a
+buffer line number would already be wrong for the lines below it."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      (move-to-column 12)
+      (revu-annotate-line "question" "Why this line?")
+      (should (string-match-p revu-fixture-worktree-seven
+                              (buffer-substring-no-properties
+                               (line-beginning-position)
+                               (line-end-position))))
+      (should (equal (current-column) 12)))))
+
+(ert-deftest revu-render-falls-back-to-the-section-when-the-line-is-gone ()
+  "A line the Source no longer carries leaves point on its hunk's heading.
+The target is gone, so the section it was under is the strongest thing
+left; the reviewer lands where their line used to be rather than at the
+top of the buffer."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      ;; The worktree changes elsewhere, so line seven is not in the diff.
+      (revu-fixture-write-file
+       root "alpha.txt"
+       (replace-regexp-in-string "alpha one" "alpha one changed"
+                                 revu-fixture-alpha-baseline t t))
+      (revu-reload)
+      (let ((section (magit-current-section)))
+        (should (object-of-class-p section 'revu-hunk-section))
+        (should (equal (car (oref section value)) "alpha.txt"))
+        (should (equal (point) (oref section start)))))))
+
+(ert-deftest revu-render-puts-the-line-back-at-the-height-it-was-at ()
+  "A restored line comes back at the screen row it was on, so the view holds."
+  (revu-fixture-in-repo root
+    (let ((buffer (revu-diff-worktree "worktree")))
+      (set-window-buffer (selected-window) buffer)
+      (with-current-buffer buffer
+        (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+        (recenter 3)
+        (revu-annotate-line "question" "Why this line?")
+        (should (equal (count-screen-lines (window-start)
+                                           (line-beginning-position)
+                                           nil (selected-window))
+                       3))))))
+
+(ert-deftest revu-render-leaves-point-on-a-heading-when-a-mark-folds-the-line ()
+  "Marking a hunk Reviewed folds it, and leaves point on its heading.
+The line point was on is still rendered, but the fold has hidden it:
+putting point back on it would put the reviewer in text they cannot see."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      (revu-reviewed-toggle)
+      (should-not (invisible-p (point)))
+      (let ((section (magit-current-section)))
+        (should (object-of-class-p section 'revu-hunk-section))
+        (should (equal (point) (oref section start)))))))
+
+(ert-deftest revu-render-leaves-point-on-a-removed-line ()
+  "A removed line holds point like any other, under the path it is named by.
+A removed line is named under the path the file had before the diff
+renamed it, so its Target is not the one the lines around it carry."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +7 -alpha seven$")
+      (revu-annotate-line "note" "This is what it said before.")
+      (should (string-match-p "^ +7 -alpha seven$"
+                              (buffer-substring-no-properties
+                               (line-beginning-position)
+                               (line-end-position)))))))
+
 (provide 'revu-render-test)
 ;;; revu-render-test.el ends here

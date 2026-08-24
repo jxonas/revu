@@ -49,15 +49,17 @@ back.  The file is rewritten directly, the way an agent rewrites it."
     (aset annotations 0 (cons (cons 'reply reply) annotation))
     review))
 
-(defun revu-reload-test--appended (review kind body)
+(defun revu-reload-test--appended (review kind body &optional line origin)
   "Return REVIEW with an Annotation of KIND carrying BODY appended.
 The Annotation is the shape an agent writes: a fresh ULID, a Target and
-no Anchor, because an agent has no file content to take one from."
+no Anchor, because an agent has no file content to take one from.  It is
+on LINE of Origin ORIGIN of alpha.txt, the changed line by default."
   (let ((annotation
          `((id . "01ZZZZZZZZZZZZZZZZZZZZZZZZ")
            (kind . ,kind)
-           (target . ((kind . "line") (path . "alpha.txt") (line . 7)
-                      (origin . "added")))
+           (target . ((kind . "line") (path . "alpha.txt")
+                      (line . ,(or line 7))
+                      (origin . ,(or origin "added"))))
            (body . ,body)
            (created . "2026-08-23T21:00:00Z")
            (updated . "2026-08-23T21:00:00Z"))))
@@ -246,6 +248,28 @@ another way of saying nothing."
       (should (= (seq-length (revu-review-annotations
                               (revu-fixture-sidecar root "worktree")))
                  2)))))
+
+(ert-deftest revu-reload-keeps-point-on-the-line-when-lines-are-added-above-it ()
+  "An Annotation the agent put above the reviewer does not move their line.
+Reload renders the agent's Annotation under a line above the reviewer's,
+which pushes every buffer line below it down.  The reviewer is on the
+line, not on the row, and the reload leaves them there."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-reload-test--open-worktree root)
+      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      (let ((row (line-number-at-pos)))
+        (revu-reload-test--agent-edit
+         root "worktree"
+         (lambda (review)
+           (revu-reload-test--appended review "note" "Look at this first."
+                                       5 "context")))
+        (revu-reload)
+        (should (string-match-p revu-fixture-worktree-seven
+                                (buffer-substring-no-properties
+                                 (line-beginning-position)
+                                 (line-end-position))))
+        ;; The line is where it was; the row it sits on is not.
+        (should (> (line-number-at-pos) row))))))
 
 (provide 'revu-reload-test)
 ;;; revu-reload-test.el ends here

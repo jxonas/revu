@@ -185,6 +185,13 @@ adding a hunk of its own."
                  (concat "alpha one changed\n" (and extra (concat extra "\n"))))
                 (replace-regexp-in-string "alpha ten" "alpha ten changed"))))
 
+(defconst revu-fixture-worktree-seven
+  "^ +7 \\+alpha seven in the worktree$"
+  "The rendered worktree line the point tests put the reviewer on.
+It is the added half of the one line the worktree changes, so it is a
+line with context above it, a removed line beside it and hunks either
+side -- everything a test about where point lands needs around it.")
+
 (defun revu-fixture-hidden-on-screen-p (section)
   "Return non-nil while the body of SECTION is invisible on screen.
 The `hidden' slot is magit-section's model of visibility and nothing

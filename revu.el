@@ -347,16 +347,11 @@ than guessed at (ADR-0011)."
     file))
 
 (defun revu--goto-line (number)
-  "Put point on the rendered line numbered NUMBER of the file under review."
-  (goto-char (point-min))
-  (let ((found nil))
-    (while (and (not found) (not (eobp)))
-      (let ((target (get-text-property (point) 'revu-target)))
-        (if (equal (nth 1 target) number)
-            (setq found t)
-          (forward-line 1))))
-    (unless found
-      (goto-char (point-min)))))
+  "Put point on the rendered line numbered NUMBER of the file under review.
+Point opens the buffer when the render carries no such line."
+  (goto-char (or (revu-render-target-position
+                  (lambda (target) (equal (nth 1 target) number)))
+                 (point-min))))
 
 ;;;###autoload
 (defun revu-file (&optional file name)

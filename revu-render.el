@@ -48,6 +48,13 @@
 ;; file draws.  The glyph is heading text and not a fold, so it survives
 ;; opening a collapsed section and owes nothing to the view toggles.
 ;;
+;; A render is where the reviewer's place is kept.  Point comes back on
+;; the line it was on, named by the `revu-target' that line carries rather
+;; than by the row it sat on: the row is the first thing a render changes,
+;; whether by an Annotation inserted above or by a diff re-taken over a
+;; file that grew.  The section and then the row answer in turn when the
+;; line itself is gone, and the column and the height come back with it.
+;;
 ;; Every source line carries a `revu-target' text property -- its path, its
 ;; number and its Origin -- so a command can tell what the reviewer is
 ;; pointing at, and a dim line-number prefix, because reviewers talk to
@@ -367,8 +374,9 @@ and decides whether that section is rendered at all; the buffer's view
 filters shape the render through it, and a nil KEEP-P renders the whole
 Source.  STATE-P is called with the value of each file and hunk section
 and returns the Reviewed state to badge its heading with; the render
-knows marks only through it.  Point is left where the same section, or
-failing that the same line, held it before."
+knows marks only through it.  Point is left on the same line of the
+Source it was on, at the same column and the same height, or as near to
+that as this render can put it."
   (let* ((inhibit-read-only t)
          ;; A section's `start', `content' and `end' are plain positions
          ;; here, not the markers magit-section makes by default.  That is
@@ -385,7 +393,7 @@ failing that the same line, held it before."
          ;; everything back to markers at the end of the build, which is
          ;; the population this binding exists to avoid.
          (magit-section-inhibit-markers t)
-         (previous (revu-render--point-state))
+         (previous (revu-render--point-now))
          (paths (mapcar #'revu-diff-file-path files))
          ;; An Annotation on the Review, and one on a file the Source does
          ;; not carry, belong to no file section: they open the buffer.
@@ -472,12 +480,41 @@ reviewer's own and no state of the Review decides it."
     (revu-render-forget-visibility section)
     (mapc #'revu-render-forget-visibility-tree (oref section children))))
 
-(defun revu-render--point-state ()
-  "Return where point is, as the section it is in and the line it is on."
-  (cons (and magit-root-section
-             (let ((section (magit-current-section)))
-               (and section (oref section value))))
-        (line-number-at-pos)))
+(cl-defstruct (revu-render-point
+               (:constructor revu-render-point-create)
+               (:copier nil))
+  "Where the reviewer was looking, so the next render can put them back.
+TARGET is what the line point was on carries: its path, its number and
+its Origin, which is what names that line to a render and not a Target
+record.  IDENT is the identity of the section point was in, LINE the
+buffer line number it was on, COLUMN the column, and HEIGHT how far down
+its window the line sat.
+
+`revu-render--restore-point' reads them; it says there which it trusts
+first and why."
+  target ident line column height)
+
+(defun revu-render--point-height ()
+  "Return how far down its window the line at point sits, in screen rows.
+Nil when no window on this frame is showing this buffer: a batch render
+has no height to keep.  A buffer shown in two windows is measured in one
+of them and put back in one of them, which is the reviewer's own window
+whenever they are the one rendering."
+  (let ((window (get-buffer-window)))
+    (when window
+      (count-screen-lines (window-start window) (line-beginning-position)
+                          nil window))))
+
+(defun revu-render--point-now ()
+  "Return where the reviewer is looking now, as a `revu-render-point'."
+  (revu-render-point-create
+   :target (get-text-property (line-beginning-position) 'revu-target)
+   :ident (and magit-root-section
+               (let ((section (magit-current-section)))
+                 (and section (magit-section-ident section))))
+   :line (line-number-at-pos)
+   :column (current-column)
+   :height (revu-render--point-height)))
 
 (defun revu-render-section-with-value (value)
   "Return the section whose value is VALUE, or nil when there is none.
@@ -493,16 +530,94 @@ finds again what it acted on once the buffer has been built anew."
         (walk magit-root-section))
       found)))
 
-(defun revu-render--restore-point (state)
-  "Put point back where STATE, from `revu-render--point-state', had it.
-The section the reviewer was reading is the better answer, because a
-render that adds a line above it would otherwise slide the buffer out
-from under them; the line number is the answer when that section is gone."
-  (let ((section (revu-render-section-with-value (car state))))
-    (if section
-        (goto-char (oref section start))
-      (goto-char (point-min))
-      (forward-line (1- (cdr state))))))
+(defun revu-render-target-position (predicate)
+  "Return where the first line whose `revu-target' satisfies PREDICATE is.
+Nil when no line does.  PREDICATE is called with what each run of the
+buffer carries, which is nil for everything that is not a source line, so
+it has to answer for nil as well.  The walk is over the property's runs
+rather than the buffer's lines: a heading, an Annotation and its Reply
+carry no Target and are not worth stepping through one line at a time."
+  (let ((position (point-min))
+        (found nil))
+    (while (and position (not found))
+      (if (funcall predicate (get-text-property position 'revu-target))
+          (setq found position)
+        (setq position (next-single-property-change position 'revu-target))))
+    found))
+
+(defun revu-render--target-position (target)
+  "Return where the line carrying TARGET is rendered, or nil when none is.
+A line a fold has hidden is no answer: point would sit in text the
+reviewer cannot see, so the section that hid it is left to answer
+instead."
+  (when target
+    (let ((found (revu-render-target-position
+                  (lambda (candidate) (equal candidate target)))))
+      (and found (not (invisible-p found)) found))))
+
+(defun revu-render--section-position (ident)
+  "Return where the heading of the section IDENT names is, or nil.
+A section a fold has hidden hands the question to its parent, so the
+reviewer lands on the heading of whatever is holding their section
+closed rather than inside it."
+  (when (and ident magit-root-section)
+    (let ((section (magit-get-section ident)))
+      (while (and section (invisible-p (oref section start)))
+        (setq section (oref section parent)))
+      (and section (oref section start)))))
+
+(defun revu-render--line-position (line)
+  "Return where buffer LINE begins."
+  (save-excursion
+    (goto-char (point-min))
+    (forward-line (1- line))
+    (line-beginning-position)))
+
+(defun revu-render--restore-height (height)
+  "Put the line at point back HEIGHT screen rows down its window.
+`recenter' clamps at the top of the buffer rather than scrolling past
+it, so a line that no longer has HEIGHT rows above it settles where it
+can and the reviewer is not scrolled somewhere they never were.  The
+height is kept whichever of the three answers put point where it is: a
+reviewer whose line is gone is best left looking at the same part of the
+buffer they were.
+
+The window is handed the point this render just restored before it is
+selected, because selecting a window puts its own idea of point back into
+the buffer -- which for any window but the selected one is where the
+reviewer was before the render, and would undo the restore it is here to
+finish."
+  (let ((window (get-buffer-window)))
+    (when (and height window)
+      (set-window-point window (point))
+      (with-selected-window window
+        (recenter height)))))
+
+(defun revu-render--restore-point (previous)
+  "Put the reviewer back where PREVIOUS, a `revu-render-point', had them.
+Three places are tried, in the order of how well each names the line the
+reviewer was on.  The Target the line carries names the line itself, and
+so survives the render that adds an Annotation above them and the diff
+re-taken over a file that grew.  The section names the hunk the line was
+in, and answers once the line is gone from the Source.  The buffer row
+names nothing but where the line happened to sit -- which is the first
+thing a render changes -- and answers only once the section is gone too.
+
+The column comes back with the line, and the line comes back at the
+height it was at, so a reviewer who kept their line does not lose their
+view of it."
+  (let ((position (revu-render--target-position
+                   (revu-render-point-target previous))))
+    (if position
+        (progn (goto-char position)
+               (move-to-column (revu-render-point-column previous)))
+      ;; A heading is read from its start: there is no column of the
+      ;; reviewer's to keep on a line that is not the line they were on.
+      (goto-char (or (revu-render--section-position
+                      (revu-render-point-ident previous))
+                     (revu-render--line-position
+                      (revu-render-point-line previous))))))
+  (revu-render--restore-height (revu-render-point-height previous)))
 
 (provide 'revu-render)
 ;;; revu-render.el ends here
