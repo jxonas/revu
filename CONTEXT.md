@@ -43,9 +43,15 @@ _Avoid_: Response, resolution, comment
 
 **Reviewed mark**:
 The persisted assertion that the reviewer has read a region, recorded as a
-content digest taken when marking. A region is reviewed exactly when its
-current content matches a mark; an edit un-matches it.
+content digest taken when marking.
 _Avoid_: Seen, viewed, checked-off
+
+**Reviewed state**:
+Where a region stands against the Reviewed marks at load time: `reviewed`
+when a mark's digest matches its content, `stale` when a mark was taken over
+it but no longer matches, and `unreviewed` when none was ever taken. Derived
+on load, like Anchor state and Path resolution; never persisted.
+_Avoid_: Read status, seen state, staleness flag
 
 **Revision**:
 The immutable commit a diff Source was generated from.
