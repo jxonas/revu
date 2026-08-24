@@ -202,6 +202,61 @@ file's hunks instead (ADR-0012)."
           (dolist (hunk hunks)
             (should (revu-fixture-hidden-on-screen-p hunk))))))))
 
+(ert-deftest revu-render-keeps-a-fold-when-magit-caches-no-visibility ()
+  "A fold survives a reload with `magit-section-cache-visibility' globally nil.
+That option decides whether a fold is ever written to magit's cache, and
+the fold invariant (ADR-0012) is read back out of it.  A reviewer who
+turned it off for magit would lose every fold in a review buffer, so
+`revu-mode' binds it buffer-locally."
+  (revu-fixture-in-repo root
+    (let ((magit-section-cache-visibility nil))
+      (with-current-buffer (revu-diff-worktree "worktree")
+        (revu-fixture-fold-outlives (revu-reload))))))
+
+(ert-deftest revu-render-keeps-a-fold-when-magit-caches-other-section-types ()
+  "A fold survives a reload when the cache option names types that are not revu's.
+`magit-section-cache-visibility' takes a list of section types as well as
+a boolean, so a value naming magit's own types excludes revu's without
+the reviewer ever intending to."
+  (revu-fixture-in-repo root
+    (let ((magit-section-cache-visibility '(file hunk)))
+      (with-current-buffer (revu-diff-worktree "worktree")
+        (revu-fixture-fold-outlives (revu-reload))))))
+
+(ert-deftest revu-render-keeps-a-fold-when-magit-preserves-no-visibility ()
+  "A fold survives with `magit-section-preserve-visibility' globally nil.
+The cache can be perfectly populated and still never consulted: that
+option gates the read.  Defending the write alone would leave the
+invariant just as broken.
+
+The filter is what asks the question here.  A render that rebuilds the
+same tree reads a fold back off the previous tree without the cache, but
+a section the filter dropped is in no previous tree: coming back folded
+is the cache and nothing else."
+  (revu-fixture-in-repo root
+    (let ((magit-section-preserve-visibility nil))
+      (with-current-buffer (revu-diff-worktree "worktree")
+        (revu-fixture-fold-outlives
+         (revu-reviewed-toggle-annotated-only)
+         (should-not (revu-fixture-sections 'revu-file-section))
+         (revu-reviewed-toggle-annotated-only))))))
+
+(ert-deftest revu-render-leaves-the-visibility-options-alone-outside-the-review ()
+  "Opening a review changes neither visibility option outside its own buffer.
+revu inherits the reviewer's magit-section configuration; the two
+bindings that defend the fold invariant are buffer-local exceptions, not
+a global assignment."
+  (revu-fixture-in-repo root
+    (let ((magit-section-cache-visibility nil)
+          (magit-section-preserve-visibility nil))
+      (with-current-buffer (revu-diff-worktree "worktree")
+        (should (eq magit-section-cache-visibility t))
+        (should (eq magit-section-preserve-visibility t)))
+      (should-not magit-section-cache-visibility)
+      (should-not magit-section-preserve-visibility)
+      (should-not (default-value 'magit-section-cache-visibility))
+      (should-not (default-value 'magit-section-preserve-visibility)))))
+
 (ert-deftest revu-render-keeps-a-hunk-fold-when-a-filter-drops-the-hunk-above-it ()
   "A view filter dropping a hunk leaves the fold of the hunk below it alone.
 A hunk is placed among the hunks its file was parsed with, not among the

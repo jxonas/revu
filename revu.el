@@ -99,7 +99,14 @@ The buffer is read-only and is a render of the Review's state: every
 command changes the state, writes it to the Sidecar and renders again.
 Nothing is edited here, and revu never puts a mode on the reviewer's own
 file buffers (ADR-0010)."
-  (setq buffer-read-only t))
+  (setq buffer-read-only t)
+  ;; A fold the reviewer set outlives the render that built the section
+  ;; (ADR-0012), and magit's visibility cache is what makes that true:
+  ;; one of these gates the write to it, the other the read back.  Bound
+  ;; buffer-locally, so whatever the reviewer configured for magit stands
+  ;; everywhere else.
+  (setq-local magit-section-cache-visibility t)
+  (setq-local magit-section-preserve-visibility t))
 
 (defun revu-buffer-name (name)
   "Return the name of the buffer the Review called NAME is reviewed in."

@@ -210,6 +210,19 @@ pass over a line whose colour the highlight has covered."
     (should (re-search-forward regexp nil t))
     (get-char-property (match-beginning 0) 'font-lock-face)))
 
+(defmacro revu-fixture-fold-outlives (&rest body)
+  "Fold the first file section, run BODY, and assert the fold is still on screen.
+BODY is whatever renders the buffer again -- a reload, a filter toggled
+and back -- and the fold it leaves behind is the invariant of ADR-0012."
+  (declare (indent 0))
+  `(progn
+     (let ((file (car (revu-fixture-sections 'revu-file-section))))
+       (magit-section-hide file)
+       (should (revu-fixture-hidden-on-screen-p file)))
+     ,@body
+     (should (revu-fixture-hidden-on-screen-p
+              (car (revu-fixture-sections 'revu-file-section))))))
+
 (defun revu-fixture-hidden-on-screen-p (section)
   "Return non-nil while the body of SECTION is invisible on screen.
 The `hidden' slot is magit-section's model of visibility and nothing

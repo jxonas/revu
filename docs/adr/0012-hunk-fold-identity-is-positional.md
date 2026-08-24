@@ -42,6 +42,40 @@ fold lands on its neighbour. Position is the only thing about a hunk that
 survives its content changing, which is the case this exists for; the
 alternative is losing the fold every time.
 
+## What the fold invariant rests on
+
+The invariant is magit's visibility cache, and two magit-section
+variables decide whether that cache works. `magit-section-cache-visibility`
+gates whether a fold is ever written to it — it is a defcustom, and it
+takes a list of section types as well as a boolean, so a value naming
+magit's own types excludes revu's without the reviewer ever intending
+to. `magit-section-preserve-visibility` gates whether the cache is read
+back: it can be perfectly populated and still never consulted. That one
+is a plain variable rather than a defcustom, so a reviewer arrives at it
+through magit's own documentation rather than through `customize` — but
+its default is settable all the same.
+
+With either off every hand-set fold dies on every render. There is no
+error and nothing on screen to diagnose — the buffer simply comes back
+expanded, which is the failure this ADR exists to prevent. revu keeps no
+fold memory of its own; the writes are magit's.
+
+So `revu-mode` binds both buffer-locally, and a review buffer keeps the
+invariant whatever the reviewer configured for magit. This is a
+deliberate exception to revu's posture of inheriting the reviewer's
+magit-section configuration rather than overriding it, and it is narrow:
+these two control a mechanism revu builds on, not an appearance the
+reviewer is entitled to choose. Defending only one would be the worst
+outcome — the posture cost paid without the protection bought, since the
+write and the read are halves of one guarantee.
+
+ADR-0008 turned down `magit-section-highlight-current` set to nil partly
+because it "reaches into the reviewer's own magit-section configuration",
+and that is the nearest precedent for this. The line between them is what
+the variable governs: the highlight is an affordance the reviewer is
+choosing the look of, and these two are the mechanism a documented
+invariant is built on.
+
 ## Considered options
 
 - Making the value itself `(PATH . INDEX)`: touches every caller that looks a
