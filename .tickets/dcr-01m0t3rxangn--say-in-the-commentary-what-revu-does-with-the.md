@@ -6,7 +6,7 @@ type: task
 priority: 3
 mode: afk
 created: '2026-08-24T14:46:12.561000279Z'
-updated: '2026-08-24T18:05:36.445024057Z'
+updated: '2026-08-24T20:06:48.311210943Z'
 acceptance:
 - title: revu.el's Commentary states that revu inherits rather than overrides magit-section configuration
   done: false
@@ -21,6 +21,7 @@ deps:
 - dcr-01m0t3rkpff2
 links:
 - dcr-01m0tf5gqcc1
+- dcr-01m0tp3y1th9
 ---
 
 ## Description
