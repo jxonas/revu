@@ -176,16 +176,43 @@ been taken over."
 
 ;;;; Which of the three states a region is in
 
-(defun revu-reviewed--dangling (review files path)
+(defvar revu-reviewed--dangling-memo nil
+  "Where the render under way memoises its dangling marks, by path.
+Every hunk of a file asks the same question of the same marks, so
+answering it once a file rather than once a hunk is what keeps a render
+of a large Source from costing the square of what it shows.  The table
+belongs to one render and is thrown away with it, so nothing it holds can
+outlive the state it was derived from.")
+
+(defun revu-reviewed--dangling-marks (review files path)
   "Return every mark of REVIEW on PATH that no region FILES renders matches.
 These are the assertions the reviewer made that no longer hold: what was
 read under PATH is not there any more.  Which region each one was about
-is what the mark's span says."
-  (let ((digests (revu-reviewed--digests files path)))
-    (seq-filter (lambda (mark)
-                  (and (equal (revu-mark-path mark) path)
-                       (not (member (revu-mark-digest mark) digests))))
-                (revu-review-marks review))))
+is what the mark's span says.
+
+The marks are found before the digests are taken: a path nothing was ever
+marked on has no assertion that could have stopped holding, and hashing
+its content to discover that is work a buffer with no marks in it should
+not pay on every render."
+  (let ((mine (seq-filter (lambda (mark) (equal (revu-mark-path mark) path))
+                          (revu-review-marks review))))
+    (when mine
+      (let ((digests (revu-reviewed--digests files path)))
+        (seq-remove (lambda (mark)
+                      (member (revu-mark-digest mark) digests))
+                    mine)))))
+
+(defun revu-reviewed--dangling (review files path)
+  "Return every mark of REVIEW on PATH that matches nothing FILES renders.
+Answered from `revu-reviewed--dangling-memo' while a render is holding
+one, and computed afresh otherwise."
+  (if (null revu-reviewed--dangling-memo)
+      (revu-reviewed--dangling-marks review files path)
+    (let ((memo (gethash path revu-reviewed--dangling-memo 'unasked)))
+      (if (eq memo 'unasked)
+          (puthash path (revu-reviewed--dangling-marks review files path)
+                   revu-reviewed--dangling-memo)
+        memo))))
 
 (defun revu-reviewed--stale-p (review files value)
   "Return non-nil when the section of FILES valued VALUE was read and changed.
@@ -253,9 +280,11 @@ of the reviewer's way; REVIEW holds the marks that decide it."
 It is called with a section's value and returns (STATE . PROGRESS), which
 is all the render needs to know about marks: the render draws headings
 and REVIEW is what decides them."
-  (lambda (value)
-    (cons (revu-reviewed-state review files value)
-          (revu-reviewed-progress review files value))))
+  (let ((memo (make-hash-table :test #'equal)))
+    (lambda (value)
+      (let ((revu-reviewed--dangling-memo memo))
+        (cons (revu-reviewed-state review files value)
+              (revu-reviewed-progress review files value))))))
 
 (defun revu-reviewed-keep-p (review files)
   "Return the predicate saying which sections of FILES render at all.

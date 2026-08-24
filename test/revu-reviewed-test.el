@@ -378,6 +378,19 @@ The render says nothing rather than guessing which of them to accuse."
       (should-not (string-match-p revu-render-stale-glyph
                                   (revu-fixture-render))))))
 
+(ert-deftest revu-reviewed-hashes-nothing-for-a-path-nothing-was-marked-on ()
+  "A path carrying no mark carries no assertion that could have stopped holding.
+Discovering that costs a lookup and never a digest: every hunk of a file
+asks the same question, and a Source nobody has marked yet would
+otherwise pay for hashing all of it on every render."
+  (revu-fixture-in-repo root
+    (revu-reviewed-test--two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (cl-letf (((symbol-function 'revu-reviewed--digests)
+                 (lambda (&rest _) (error "Hashed a path with no marks on it"))))
+        (should-not (revu-reviewed--dangling-marks (revu-review) revu--files
+                                                   "alpha.txt"))))))
+
 (ert-deftest revu-reviewed-file-heading-counts-the-hunks-that-match ()
   "A file part-way read says how much of it is left, not that it is neither.
 Working down a large file is the case Reviewed marks exist for, and how
