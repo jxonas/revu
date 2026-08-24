@@ -18,3 +18,17 @@ Decisions:
 
 - Emacs-state special buffer, evil via a future evil-collection module (classic magit posture): least code, but degrades badly — evil users get a shadowed, mostly dead keymap until an upstream PR we don't control lands. The maintainer is a Doom evil user; this fails dogfooding.
 - Evil-tolerant single keymap (avoid contested letters): no such keymap exists — the survey showed every useful letter is contested in normal/motion state; the result contorts the vanilla experience and still breaks under evil.
+
+## Amendment: `W` is the second Export sink, and force-write moves to `!`
+
+The kill-ring Export (ADR-0006's amendment) needs a key, and `W` beside `E`
+is the pair a reviewer reads as one thing with two sinks. `W` is evil's
+WORD motion, which the rule above would keep: `E` is already the same
+exception, taken for the same reason — a read-only render nobody edits is
+not walked a WORD at a time, and the Export keys are worth more there than
+the motions they cover. So the exception is named rather than left to be
+inferred from `E`: the two Export sinks keep `E` and `W` in both maps.
+
+That takes `W` off force-write, which moves to `!` in the palette. Which
+letter it sits on was never the decision — the decision was that force-write
+lives in the palette and nowhere else, and it still does.

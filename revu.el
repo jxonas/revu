@@ -25,12 +25,24 @@
 
 ;; revu reviews a Source -- a diff or a plain file -- in a dedicated
 ;; read-only buffer, and persists the reviewer's Annotations as a
-;; Sidecar: one JSON file per Review under `<project-root>/.revu/'.
-;; The Sidecar is the review state itself, and the record AI agents and
-;; scripts read.
+;; Sidecar: one JSON file per Review under
+;; `<project-root>/.revu/reviews/', with the Exports written beside it
+;; under `<project-root>/.revu/exports/'.  The Sidecar is the review
+;; state itself, and the record AI agents and scripts read.
 ;;
 ;; This file carries the package entry points and the helpers that
 ;; locate the project root and the Sidecar directory.
+;;
+;; A Review opens on the name derived from its Source and prompts for
+;; nothing; that Review is the Source's scratch bucket, resumed every
+;; time the Source is reviewed again.  A prefix argument asks for a name
+;; instead, and `revu-rename' gives one to a Review that turned out to be
+;; worth keeping (ADR-0005's amendment).  `revu-open' lists what is on
+;; disk and `revu-discard' throws one away.
+;;
+;; There is no migration from the flat `.revu/' of before that
+;; amendment: a reviewer carrying Sidecars and Exports from then moves
+;; them into `reviews/' and `exports/' by hand, once.
 ;;
 ;; A reviewer who has magit can pick what to review with magit's own
 ;; commands, through `revu-magit-mode' in `revu-magit.el'.  That mode is
@@ -61,7 +73,13 @@
   :prefix "revu-")
 
 (defconst revu-directory-name ".revu"
-  "Name of the per-project directory holding Sidecar files.")
+  "Name of the per-project directory revu keeps a project's Reviews in.")
+
+(defconst revu-reviews-directory-name "reviews"
+  "Name of the directory under `revu-directory-name' holding Sidecars.")
+
+(defconst revu-exports-directory-name "exports"
+  "Name of the directory under `revu-directory-name' holding Exports.")
 
 (defun revu-project-root (path)
   "Return the root of the project containing PATH, as a directory name.
@@ -79,17 +97,34 @@ outside a project root rather than inventing a Sidecar location for it."
                   path))
     (file-name-as-directory (file-truename (project-root project)))))
 
+(defun revu-directory (subdirectory &optional path)
+  "Return SUBDIRECTORY of the revu directory of the project containing PATH.
+PATH defaults to `default-directory'.  Nothing is created: naming a file
+is not writing one, and the command about to write makes the directory.
+Signal a `user-error' when PATH belongs to no project."
+  (file-name-as-directory
+   (expand-file-name subdirectory
+                     (expand-file-name
+                      revu-directory-name
+                      (revu-project-root (or path default-directory))))))
+
 (defun revu-sidecar-file-name (name &optional path)
   "Return the Sidecar file that persists the Review called NAME.
-The Sidecar lives in the `revu-directory-name' directory of the project
-containing PATH, which defaults to `default-directory'.  That directory
-is created when it does not exist yet; the Sidecar itself is not.
+The Sidecar lives under `revu-reviews-directory-name' in the revu
+directory of the project containing PATH, which defaults to
+`default-directory'.  Neither the directory nor the file is created.
 Signal a `user-error' when PATH belongs to no project."
-  (let ((directory (expand-file-name
-                    revu-directory-name
-                    (revu-project-root (or path default-directory)))))
-    (make-directory directory t)
-    (expand-file-name (concat name ".json") directory)))
+  (expand-file-name (concat name ".json")
+                    (revu-directory revu-reviews-directory-name path)))
+
+(defun revu-export-file-name (name &optional path)
+  "Return the file the Export of the Review called NAME is written to.
+It lives under `revu-exports-directory-name', beside the `reviews\\='
+directory rather than beside the Sidecar itself, so that a Review name
+can never collide with another kind of file and `revu-open' has one
+directory to read (ADR-0005\\='s amendment).  Nothing is created."
+  (expand-file-name (concat name ".md")
+                    (revu-directory revu-exports-directory-name path)))
 
 ;;;; The review buffer
 
@@ -132,13 +167,17 @@ Signal a `user-error' outside a review buffer."
 (defun revu-render ()
   "Render the current review buffer from the state it carries.
 Where each Annotation belongs, and the state of its Anchor, is derived
-from today's file content on every render and never persisted."
-  (let ((review (revu-review)))
+from today's file content on every render and never persisted.  Return
+the Placements the render was built from, so that a caller with
+something to say about them does not read every file a second time."
+  (let* ((review (revu-review))
+         (placements (revu-annotate-placements review default-directory)))
     (revu-render-diff revu--files
                       (revu-reviewed-hidden-p review revu--files)
-                      (revu-annotate-placements review default-directory)
+                      placements
                       (revu-reviewed-keep-p review revu--files)
-                      (revu-reviewed-state-p review revu--files))))
+                      (revu-reviewed-state-p review revu--files))
+    placements))
 
 (defun revu--file-content (file)
   "Return the content of FILE, or nil when there is no such file.
@@ -242,6 +281,134 @@ Annotation quietly falls back to."
     (revu-render)
     (message "Wrote %s over what was there" (revu-sidecar-file revu--sidecar))))
 
+;;;; Naming, reopening and discarding a Review
+
+(defun revu--check-review-name (name)
+  "Signal a `user-error' unless NAME is a name a Review can be filed under.
+A Review\\='s name is its file name under `reviews/\\=', so a name carrying
+a directory separator would file it where `revu-open\\=' never looks and the
+Review the rename meant to keep would be the one that went missing."
+  (when (or (string-empty-p name)
+            (member name '("." ".."))
+            (not (equal name (file-name-nondirectory name))))
+    (user-error "%s is no name for a Review: it names a file, not a path"
+                (if (string-empty-p name) "The empty string" name))))
+
+(defun revu-rename (name)
+  "Rename this Review to NAME, moving its Sidecar and its Export with it.
+The decision to keep a Review usually arrives after the annotating, so
+the scratch bucket a Source opens in is renamed rather than started
+again (ADR-0005's amendment).  The write guard holds here like anywhere
+else: a Sidecar an agent wrote to since revu read it is not moved out
+from under the reviewer, who reloads and looks first."
+  (interactive
+   (list (read-string "Rename the Review to: " (revu-review-name (revu-review)))))
+  (let* ((review (revu-review))
+         (old (revu-review-name review))
+         (file (revu-sidecar-file-name name default-directory)))
+    (revu--check-review-name name)
+    (when (equal name old)
+      (user-error "This Review is already called %s" name))
+    (dolist (taken (list file (revu-export-file-name name default-directory)))
+      ;; Both files are checked before either moves: a Review that keeps
+      ;; its Export is not renamed on top of one somebody left behind.
+      (when (file-exists-p taken)
+        (user-error "There is already a Review called %s: %s" name taken)))
+    (revu-sidecar-ensure-unchanged revu--sidecar)
+    (rename-file (revu-sidecar-file revu--sidecar) file)
+    (let ((export (revu-export-file-name old default-directory))
+          (renamed (revu-export-file-name name default-directory)))
+      (when (file-exists-p export)
+        (make-directory (file-name-directory renamed) t)
+        (rename-file export renamed)))
+    (setf (revu-sidecar-file revu--sidecar) file)
+    (revu-sidecar-write revu--sidecar (revu-review-rename review name))
+    (rename-buffer (revu-buffer-name name))
+    (message "Renamed %s to %s" old name)))
+
+(defun revu--reviews (root)
+  "Return every Review persisted under ROOT, most recently updated first.
+Each is a cons of its name and the Review read from its Sidecar.  A file
+this revu cannot read is left out: it cannot be opened either, and
+`revu-reload' is where a Sidecar an agent broke is meant to be met."
+  (let ((directory (revu-directory revu-reviews-directory-name root)))
+    (when (file-directory-p directory)
+      (sort (delq nil
+                  (mapcar (lambda (file)
+                            (ignore-errors
+                              (cons (file-name-base file)
+                                    (revu-sidecar-review
+                                     (revu-sidecar-load file)))))
+                          (directory-files directory t "\\.json\\'")))
+            (lambda (a b) (string> (revu-review-updated (cdr a))
+                                   (revu-review-updated (cdr b))))))))
+
+(defun revu--scratch-p (entry)
+  "Return non-nil when the Review in ENTRY is the scratch bucket of its Source.
+ENTRY is a cons of a name and a Review, and the Review is scratch while
+it is still called what its Source derives.  A Review over a range is
+read as named either way: its name was derived from the Revisions as the
+reviewer typed them and the record holds the commits those resolved to,
+so the two never match again."
+  (equal (car entry)
+         (ignore-errors
+           (revu-review-name-for-source (revu-review-source (cdr entry))))))
+
+(defun revu--read-review (root)
+  "Prompt for one of the Reviews persisted under ROOT and return its name.
+The most recently updated comes first, and the ones still under a
+derived name are marked as the scratch buckets they are."
+  (let* ((entries (revu--reviews root))
+         (names (mapcar #'car entries)))
+    (unless entries
+      (user-error "No Review to open under %s"
+                  (revu-directory revu-reviews-directory-name root)))
+    (completing-read
+     "Open Review: "
+     (lambda (string predicate action)
+       (if (eq action 'metadata)
+           `(metadata
+             ;; The order here is the answer to "which was I just in?",
+             ;; so completion is told to leave it alone.
+             (display-sort-function . identity)
+             (annotation-function
+              . ,(lambda (name)
+                   (when (revu--scratch-p (assoc name entries))
+                     " (scratch)"))))
+         (complete-with-action action names string predicate)))
+     nil t)))
+
+;;;###autoload
+(defun revu-open (&optional name)
+  "Open the Review called NAME, reading its Source again from its record.
+Interactively, every Review on disk is offered.  What it is over comes
+from the Sidecar rather than from what the reviewer is looking at now,
+Narrowing and all, so a Review reopens over what it was taken over."
+  (interactive)
+  (let* ((root (revu-project-root default-directory))
+         (name (or name (revu--read-review root)))
+         (review (revu-sidecar-review
+                  (revu-sidecar-load (revu-sidecar-file-name name root))))
+         (source (revu-review-source review))
+         (default-directory root))
+    (revu--open source (revu--source-files source root) name)))
+
+(defun revu-discard ()
+  "Throw this Review away: its Sidecar, its Export, and its buffer.
+The write guard holds, so a Sidecar an agent wrote to since revu read it
+refuses to be deleted until the reviewer has reloaded and seen what is
+in it."
+  (interactive)
+  (let ((name (revu-review-name (revu-review)))
+        (sidecar revu--sidecar))
+    (revu-sidecar-ensure-unchanged sidecar)
+    (let ((export (revu-export-file-name name default-directory)))
+      (when (file-exists-p export)
+        (delete-file export)))
+    (delete-file (revu-sidecar-file sidecar))
+    (kill-buffer)
+    (message "Discarded %s" name)))
+
 (defun revu--read-review-name (source)
   "Prompt for the name of the Review over SOURCE, offering the derived one.
 The default is derived from the Source, so accepting it a second time
@@ -250,38 +417,81 @@ resumes the Review already there rather than starting another."
     (read-string (format "Review name (default %s): " default)
                  nil nil default)))
 
+(defun revu--name-argument ()
+  "Return the NAME an entry command called interactively is to open under.
+That is nothing at all, so that the Review opens on the name derived
+from its Source without a prompt, unless a prefix argument asks for a
+name, which is `ask\\='.  The prefix argument is read here rather than in
+the command, so that a caller reaching an entry command from somewhere
+else -- the magit Bridge, a test, a reviewer\\='s own lisp -- never
+inherits a prefix argument meant for the command it came from
+\(ADR-0005\\='s amendment)."
+  (and current-prefix-arg 'ask))
+
+(defun revu--review-name (source name)
+  "Return the name of the Review over SOURCE that NAME asks for.
+NAME is nil for the name derived from the Source -- that Review is the
+Source\\='s scratch bucket, resumed every time it is reviewed again --
+`ask\\=' to prompt for one with the derived name offered, and otherwise
+the name itself."
+  (pcase name
+    ('nil (revu-review-name-for-source source))
+    ('ask (revu--read-review-name source))
+    (_ name)))
+
+(defun revu--resumed-message (review placements)
+  "Say what opening REVIEW resumed, or nothing when it carries no Annotation.
+PLACEMENTS is where the render just put them, so what is counted is what
+the reviewer is looking at and no file is read a second time.  A Review
+resumes silently for as long as it has nothing in it; once it does, what
+was picked up is echoed rather than left to be discovered, because the
+scratch bucket of a Source keeps whatever was put in it the last time and
+is meant to be no surprise (ADR-0005\\='s amendment)."
+  (let ((annotations (seq-length (revu-review-annotations review))))
+    (when (> annotations 0)
+      (let ((orphaned (seq-count (lambda (placement)
+                                   (eq (revu-render-placement-state placement)
+                                       'orphaned))
+                                 placements)))
+        (message "Resumed %s: %d Annotation%s (%d orphaned)"
+                 (revu-review-name review) annotations
+                 (if (= annotations 1) "" "s") orphaned)))))
+
 (defun revu--open (source files name)
   "Open the Review called NAME over SOURCE, rendering FILES.
 The Sidecar is resumed when one is already there and written when it is
-not; the buffer is reused when the Review is already open.  Return the
-review buffer."
+not; the buffer is reused when the Review is already open.  What a
+resumed Review carries is echoed.  Return the review buffer."
   (let* ((root (revu-project-root default-directory))
          (file (revu-sidecar-file-name name root))
          (sidecar (revu-sidecar-open file (revu-review-create name source)))
-         (buffer (get-buffer-create (revu-buffer-name name))))
+         (buffer (get-buffer-create (revu-buffer-name name)))
+         (placements nil))
     (with-current-buffer buffer
       (unless (derived-mode-p 'revu-mode)
         (revu-mode))
       (setq default-directory root
             revu--sidecar sidecar
-            revu--files files)
-      (revu-render))
+            revu--files files
+            placements (revu-render)))
     (pop-to-buffer buffer)
+    (revu--resumed-message (revu-sidecar-review sidecar) placements)
     buffer))
 
 ;;;###autoload
 (defun revu-diff-worktree (&optional name paths)
   "Review everything the worktree carries that HEAD does not.
 Staged and unstaged changes alike, because that is what the reviewer is
-about to commit.  NAME names the Review; it is prompted for, with the
-name derived from the Source offered as the default.  PATHS narrows the
-Source to those pathspecs; it is never prompted for, so only a caller
-that means to narrow -- the magit Bridge -- ever narrows."
-  (interactive)
+about to commit.  NAME names the Review, and is the name derived from
+the Source when it is nothing; interactively a prefix argument asks for
+one.  PATHS narrows the Source to those pathspecs; it is never prompted
+for, so only a caller that means to narrow -- the magit Bridge -- ever
+narrows."
+  (interactive (list (revu--name-argument)))
   (let* ((root (revu-project-root default-directory))
          (revision (revu-diff-head-revision root))
          (source (revu-source-worktree revision paths))
-         (name (or name (revu--read-review-name source))))
+         (name (revu--review-name source name)))
     (revu--open source
                 (revu-diff-parse (revu-diff-worktree-text root revision paths))
                 name)))
@@ -289,32 +499,31 @@ that means to narrow -- the magit Bridge -- ever narrows."
 ;;;###autoload
 (defun revu-diff-staged (&optional name paths)
   "Review what is staged in the index, against HEAD.
-NAME names the Review; it is prompted for, with the name derived from the
-Source offered as the default.  PATHS narrows the Source to those
-pathspecs, and is never prompted for."
-  (interactive)
+NAME names the Review, and is the name derived from the Source when it
+is nothing; interactively a prefix argument asks for one.  PATHS narrows
+the Source to those pathspecs, and is never prompted for."
+  (interactive (list (revu--name-argument)))
   (let* ((root (revu-project-root default-directory))
          (source (revu-source-staged (revu-diff-head-revision root) paths))
-         (name (or name (revu--read-review-name source))))
+         (name (revu--review-name source name)))
     (revu--open source (revu-diff-parse (revu-diff-staged-text root paths))
                 name)))
 
 ;;;###autoload
 (defun revu-diff-range (&optional base head name paths)
   "Review what the Revisions BASE and HEAD differ by.
-NAME names the Review; it is prompted for, with the name derived from the
-Revisions as they were typed -- `main..feature', not the commits they
-resolve to -- offered as the default.  The Review itself records the
-commits, because that is what re-anchoring a removed line needs.  PATHS
-narrows the Source to those pathspecs, and is never prompted for: the
-name offered then carries their slug, so a narrowed Review resumes itself
-rather than the full one."
-  (interactive)
+NAME names the Review, and is derived from the Revisions as they were
+typed -- `main..feature', not the commits they resolve to -- when it is
+nothing; interactively a prefix argument asks for one.  The Review itself
+records the commits, because that is what re-anchoring a removed line
+needs.  PATHS narrows the Source to those pathspecs, and is never
+prompted for: the derived name then carries their slug, so a narrowed
+Review resumes itself rather than the full one."
+  (interactive (list nil nil (revu--name-argument)))
   (let* ((root (revu-project-root default-directory))
          (base (or base (read-string "Base revision: ")))
          (head (or head (read-string "Head revision: " "HEAD")))
-         (name (or name (revu--read-review-name
-                         (revu-source-range base head paths))))
+         (name (revu--review-name (revu-source-range base head paths) name))
          (source (revu-source-range (revu--resolve root base)
                                     (revu--resolve root head)
                                     paths)))
@@ -332,12 +541,13 @@ it was taken between cannot re-locate a removed line later."
 ;;;###autoload
 (defun revu-diff-buffer (&optional buffer name)
   "Review the unified diff already in BUFFER, which defaults to this one.
-NAME names the Review, and is prompted for when it is not given.
-The Revisions are read from the diff's own `index' headers, and the
-Review is recorded as the range between them.  A diff carrying no such
-headers, or naming objects this repository does not have, is refused:
-revu will not review a diff it cannot say the provenance of."
-  (interactive)
+NAME names the Review, and is derived from the Revisions when it is
+nothing; interactively a prefix argument asks for one.  The Revisions are
+read from the diff's own `index' headers, and the Review is recorded as
+the range between them.  A diff carrying no such headers, or naming
+objects this repository does not have, is refused: revu will not review a
+diff it cannot say the provenance of."
+  (interactive (list nil (revu--name-argument)))
   (let* ((buffer (or buffer (current-buffer)))
          (text (with-current-buffer buffer
                  (buffer-substring-no-properties (point-min) (point-max))))
@@ -352,7 +562,7 @@ revu will not review a diff it cannot say the provenance of."
                     (buffer-name buffer) object)))
     (let ((source (revu-source-range (car revisions) (cdr revisions))))
       (revu--open source (revu-diff-parse text)
-                  (or name (revu--read-review-name source))))))
+                  (revu--review-name source name)))))
 
 ;;;; Plain files
 
@@ -388,15 +598,15 @@ Point opens the buffer when the render carries no such line."
 ;;;###autoload
 (defun revu-file (&optional file name)
   "Review the plain FILE, which defaults to the one this buffer visits.
-NAME names the Review; it is prompted for, with the name derived from the
-Source offered as the default.
+NAME names the Review, and is the name derived from the Source when it
+is nothing; interactively a prefix argument asks for one.
 
 One file is reviewed per Review, flat, with no diff about it (ADR-0011).
 What is on disk is what is reviewed, whatever an open buffer on the file
 has been edited to since it was last written; a modified buffer is
 offered the chance to be saved first.  An active region does one thing
 only: it puts point on its first line in the review buffer."
-  (interactive)
+  (interactive (list nil (revu--name-argument)))
   (let* (;; A region says where to start reading, and it says it in the
          ;; visiting buffer's line numbers.  Those describe the disk file
          ;; only while the buffer has not drifted from it, so a buffer
@@ -409,7 +619,7 @@ only: it puts point on its first line in the review buffer."
          (root (revu-project-root file))
          (path (file-relative-name file root))
          (source (revu-source-file path))
-         (name (or name (revu--read-review-name source)))
+         (name (revu--review-name source name))
          (default-directory root))
     (revu--open source (revu--source-files source root) name)
     (when line

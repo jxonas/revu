@@ -28,10 +28,13 @@
   (aref (alist-get 'annotations review) index))
 
 (defmacro revu-record-test--with-sidecar (root file &rest body)
-  "Bind ROOT to a fixture repository and FILE to a Sidecar path under it."
+  "Bind ROOT to a fixture repository and FILE to a Sidecar path under it.
+The directory is made, which naming the Sidecar no longer does: a test
+that writes one by hand writes where revu would have."
   (declare (indent 2))
   `(revu-fixture-with-repo ,root
      (let ((,file (revu-sidecar-file-name "worktree" ,root)))
+       (make-directory (file-name-directory ,file) t)
        ,@body)))
 
 (ert-deftest revu-sidecar-round-trips-a-review-through-disk ()
@@ -298,7 +301,7 @@ Sidecar it sits in is refused whole, like any other."
         (should-error (revu-sidecar-reload handle) :type 'revu-invalid-sidecar)
         ;; The Review revu holds is untouched, and so is the broken file.
         (should (equal (revu-sidecar-review handle) good))
-        (should (equal (revu-fixture-file-contents root ".revu/worktree.json")
+        (should (equal (revu-fixture-file-contents root ".revu/reviews/worktree.json")
                        broken))))))
 
 (defun revu-record-test--open (file)
@@ -417,7 +420,7 @@ Sidecar it sits in is refused whole, like any other."
          "change" (revu-target-range "alpha.txt" 3 5 "added") "Rework this"
          (revu-anchor-create-range
           (revu-fixture-file-contents root "alpha.txt") 3 5))))
-      (let* ((text (revu-fixture-file-contents root ".revu/worktree.json"))
+      (let* ((text (revu-fixture-file-contents root ".revu/reviews/worktree.json"))
              (anchor (alist-get 'anchor (revu-record-test--annotation
                                          (revu-record-test--json file) 0))))
         (should (equal (alist-get 'line (alist-get 'start anchor))

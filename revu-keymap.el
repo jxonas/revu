@@ -63,6 +63,9 @@
 (declare-function revu-review "revu")
 (declare-function revu-reload "revu")
 (declare-function revu-force-write "revu")
+(declare-function revu-rename "revu")
+(declare-function revu-open "revu")
+(declare-function revu-discard "revu")
 
 (declare-function evil-define-key* "ext:evil-core" (state keymap key def &rest bindings))
 (declare-function evil-add-command-properties "ext:evil-common" (command &rest properties))
@@ -150,6 +153,7 @@ are laid on top of it (ADR-0010)."
   "k" #'revu-annotate-delete
   "r" #'revu-reviewed-toggle
   "E" #'revu-export
+  "W" #'revu-export-kill
   "g" #'revu-reload
   "RET" #'revu-visit
   "?" #'revu-dispatch)
@@ -161,8 +165,10 @@ are laid on top of it (ADR-0010)."
 The mnemonics of the canonical map are kept wherever the letter is not a
 motion evil users rely on, and moved where it is: `x' deletes rather than
 `k', `gr' reloads rather than `g', and walking and folding go under `g'
-and `z' where evil-collection puts them for a magit-section buffer.  No
-initial state is set: the buffer stays in normal state like any other.
+and `z' where evil-collection puts them for a magit-section buffer.  The
+two Export sinks keep `E' and `W' over evil's WORD motions: a render
+nobody edits is not read a WORD at a time.  No initial state is set: the
+buffer stays in normal state like any other.
 
 `j', `k', `<down>' and `<up>' are the visual-line motions rather than
 evil's logical-line ones.  Going up onto a collapsed section, a logical
@@ -186,6 +192,7 @@ same for magit's own buffers, and only for those."
                     (kbd "x") #'revu-annotate-delete
                     (kbd "r") #'revu-reviewed-toggle
                     (kbd "E") #'revu-export
+                    (kbd "W") #'revu-export-kill
                     (kbd "gr") #'revu-reload
                     (kbd "RET") #'revu-visit
                     (kbd "?") #'revu-dispatch
@@ -237,12 +244,17 @@ the reviewer already knows the key for is not a palette."
   [["Sidecar"
     ("g" "reload" revu-reload)
     ("p" "hand over its path" revu-sidecar-path)
-    ("W" "write over what is there" revu-force-write)]
+    ("!" "write over what is there" revu-force-write)]
    ["Export"
-    ("E" "as revdiff markdown" revu-export)]
+    ("E" "as revdiff markdown" revu-export)
+    ("W" "onto the kill ring" revu-export-kill)]
    ["Go"
     ("RET" "visit the Target" revu-visit)]]
-  [["Review something else"
+  [["This Review"
+    ("N" "rename" revu-rename)
+    ("O" "open another" revu-open)
+    ("D" "discard" revu-discard)]
+   ["Review something else"
     ("dw" "the worktree" revu-diff-worktree)
     ("ds" "what is staged" revu-diff-staged)
     ("dr" "a range of Revisions" revu-diff-range)

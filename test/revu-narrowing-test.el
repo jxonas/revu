@@ -168,14 +168,14 @@ Review is read through, whoever wrote the record."
     (revu-narrowing-test--commit-everything root)
     (let ((base (revu-fixture-git-output root "rev-parse" "HEAD^"))
           (head (revu-fixture-git-output root "rev-parse" "HEAD")))
-      (make-directory (expand-file-name ".revu" root) t)
+      (make-directory (expand-file-name ".revu/reviews" root) t)
       (write-region
        (format (concat "{\"schema\":1,\"name\":\"foreign\","
                        "\"source\":{\"kind\":\"range\",\"base\":\"%s\","
                        "\"head\":\"%s\",\"paths\":[\"beta.txt\"]},"
                        "\"annotations\":[]}\n")
                base head)
-       nil (expand-file-name ".revu/foreign.json" root) nil 'silent)
+       nil (expand-file-name ".revu/reviews/foreign.json" root) nil 'silent)
       ;; The Review resumes off that record, and reads its Source through
       ;; the Narrowing the record carries.
       (with-current-buffer (revu-diff-range base head "foreign")

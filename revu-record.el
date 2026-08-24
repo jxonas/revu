@@ -367,9 +367,23 @@ TIME defaults to now."
   "Return the name of REVIEW, which is also its Sidecar's file name."
   (alist-get 'name review))
 
+(defun revu-review-updated (review)
+  "Return the moment REVIEW was last written, as an ISO 8601 UTC string.
+Timestamps compare as text, so the Review touched most recently sorts
+first without any of them being parsed."
+  (alist-get 'updated review))
+
 (defun revu-review-source (review)
   "Return the Source REVIEW is over."
   (alist-get 'source review))
+
+(defun revu-review-rename (review name &optional time)
+  "Return REVIEW called NAME, stamped updated at TIME.
+The name is the Review\\='s file name as well as what it is called, so
+renaming one is a move on disk; that is `revu-rename\\='s to do, and this
+is only the record it writes."
+  (revu--put-all review `((name . ,name)
+                          (updated . ,(revu-timestamp time)))))
 
 (defun revu-review-annotations (review)
   "Return the Annotations of REVIEW, in ULID order."

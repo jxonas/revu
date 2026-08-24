@@ -22,7 +22,7 @@ Kept verbatim from `headerRe' in revdiff's `app/annotation/parse.go'.")
 
 (defun revu-export-test--exported (root name)
   "Return the text exported for the Review called NAME under ROOT, or nil."
-  (let ((file (expand-file-name (format ".revu/%s.md" name) root)))
+  (let ((file (expand-file-name (format ".revu/exports/%s.md" name) root)))
     (when (file-exists-p file)
       (with-temp-buffer
         (insert-file-contents file)
@@ -420,7 +420,7 @@ the rules invents its own."
                        (revu-export)
                        messages)))
       (let ((handoff (current-kill 0))
-            (file (expand-file-name ".revu/worktree.md" root)))
+            (file (expand-file-name ".revu/exports/worktree.md" root)))
         (should (string-prefix-p file handoff))
         (should (file-name-absolute-p file))
         (should (string-suffix-p revu-export-agent-contract handoff))
@@ -434,8 +434,64 @@ the rules invents its own."
     (with-current-buffer (revu-diff-worktree "worktree")
       (revu-sidecar-path))
     (should (equal (current-kill 0)
-                   (concat (expand-file-name ".revu/worktree.json" root)
+                   (concat (expand-file-name ".revu/reviews/worktree.json" root)
                            "\n\n" revu-export-agent-contract)))))
+
+;;;; The kill-ring sink
+
+(ert-deftest revu-export-kill-copies-the-body-and-writes-nothing ()
+  "`revu-export-kill' puts the markdown itself on the kill ring, and no file.
+It is the sink for the pull request or the chat, so what lands there is
+what `revu-export' would have written -- and nothing is written."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
+      (revu-annotate-line "note" "Copied, not filed")
+      (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+        (should (equal (revu-export-kill) (current-kill 0)))
+        (should (equal (current-kill 0)
+                       "## beta.txt:2 (+)\nCopied, not filed\n"))))
+    (should-not (revu-export-test--exported root "worktree"))
+    (should-not (file-exists-p (expand-file-name ".revu/exports" root)))))
+
+(ert-deftest revu-export-kill-renders-what-the-file-export-renders ()
+  "One rendering, two sinks: the copy and the file cannot drift apart."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^modified   beta\\.txt$")
+      (revu-annotate-file "question" "Why here?")
+      (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
+      (revu-annotate-line "change" "Rename this")
+      (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+        (revu-export-kill)
+        (revu-export)
+        (should (equal (revu-export-test--exported root "worktree")
+                       (current-kill 1)))))))
+
+(ert-deftest revu-export-kill-copies-nothing-from-a-review-with-nothing-to-say ()
+  "An empty rendering leaves the kill ring alone rather than blanking it."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((kill-ring (list "what the reviewer had before"))
+            (kill-ring-yank-pointer nil))
+        (should-not (revu-export-kill))
+        (should (equal (current-kill 0) "what the reviewer had before"))))))
+
+(ert-deftest revu-export-kill-says-what-it-dropped ()
+  "An Annotation on the Review has no record here either, and is counted out."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-annotate-review "note" "About the whole thing")
+      (revu-fixture-goto-line-matching "^\\+beta two staged$")
+      (revu-annotate-line "note" "About a line")
+      (let ((kill-ring nil) (kill-ring-yank-pointer nil))
+        (let ((echoed (ert-with-message-capture messages
+                        (revu-export-kill)
+                        messages)))
+          (should (string-match-p "Dropped 1 Annotation" echoed))
+          (should (string-match-p "kill ring" echoed)))
+        (should (equal (current-kill 0)
+                       "## beta.txt:2 (+)\nAbout a line\n"))))))
 
 (provide 'revu-export-test)
 ;;; revu-export-test.el ends here

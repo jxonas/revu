@@ -24,7 +24,7 @@
 
 (defun revu-reload-test--sidecar-file (root name)
   "Return the path of the Sidecar called NAME under ROOT."
-  (expand-file-name (format ".revu/%s.json" name) root))
+  (expand-file-name (format ".revu/reviews/%s.json" name) root))
 
 (defun revu-reload-test--write-sidecar (root name text)
   "Write TEXT as the Sidecar called NAME under ROOT, as an agent would.

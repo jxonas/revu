@@ -131,9 +131,9 @@ never in place of them."
       (revu-fixture-goto-line-matching "^\\+alpha seven in the worktree$")
       (revu-annotate-line "note" "Worth a look")
       (revu-keymap-test--press "E")
-      (let ((file (expand-file-name ".revu/worktree.md" root)))
+      (let ((file (expand-file-name ".revu/exports/worktree.md" root)))
         (should (file-regular-p file))
-        (should (equal (revu-fixture-file-contents root ".revu/worktree.md")
+        (should (equal (revu-fixture-file-contents root ".revu/exports/worktree.md")
                        "## alpha.txt:7 (+)\nWorth a look\n"))))))
 
 (ert-deftest revu-keymap-g-reloads-the-source-and-the-sidecar ()
@@ -283,7 +283,11 @@ motions, which have always moved by visual line themselves."
                              'revu-sidecar-path
                              'revu-force-write
                              'revu-export
+                             'revu-export-kill
                              'revu-visit
+                             'revu-rename
+                             'revu-open
+                             'revu-discard
                              ;; Starting a Review is a command a Review is
                              ;; driven by too: story 36 asks the palette to
                              ;; list every command, and the entry commands

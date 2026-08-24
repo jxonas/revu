@@ -82,13 +82,33 @@
       (delete-directory orphan t))))
 
 (ert-deftest revu-sidecar-file-name-lives-under-the-project-root ()
-  "The Sidecar of a Review is named after it under the project's .revu directory."
+  "The Sidecar of a Review is named after it under the project's reviews directory."
   (revu-fixture-with-repo root
     (let ((sidecar (revu-sidecar-file-name "worktree" root)))
       (should (equal sidecar
-                     (expand-file-name ".revu/worktree.json" (file-truename root))))
-      (should (file-directory-p (file-name-directory sidecar)))
+                     (expand-file-name ".revu/reviews/worktree.json"
+                                       (file-truename root))))
+      ;; Naming a file is not writing one: nothing is created until a
+      ;; command has something to put there.
+      (should-not (file-exists-p (file-name-directory sidecar)))
       (should-not (file-exists-p sidecar)))))
+
+(ert-deftest revu-export-file-name-lives-beside-the-reviews-directory ()
+  "An Export is named after its Review under the project's exports directory."
+  (revu-fixture-with-repo root
+    (let ((export (revu-export-file-name "worktree" root)))
+      (should (equal export
+                     (expand-file-name ".revu/exports/worktree.md"
+                                       (file-truename root))))
+      (should-not (file-exists-p (file-name-directory export))))))
+
+(ert-deftest revu-export-file-name-refuses-a-path-outside-a-project ()
+  "No Export location is invented for a file outside a project root."
+  (let ((orphan (file-name-as-directory (make-temp-file "revu-orphan-" t))))
+    (unwind-protect
+        (should-error (revu-export-file-name "worktree" orphan)
+                      :type 'user-error)
+      (delete-directory orphan t))))
 
 (ert-deftest revu-sidecar-file-name-refuses-a-path-outside-a-project ()
   "No Sidecar location is invented for a file outside a project root."

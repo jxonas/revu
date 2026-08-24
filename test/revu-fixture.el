@@ -96,7 +96,7 @@ Return its root.  The caller is responsible for deleting it; use
 The Sidecar is read back from disk and decoded, so a test sees what an
 agent reading the file would see.  Return nil when there is no such
 Sidecar."
-  (let ((file (expand-file-name (format ".revu/%s.json" name) root)))
+  (let ((file (expand-file-name (format ".revu/reviews/%s.json" name) root)))
     (when (file-exists-p file)
       (with-temp-buffer
         (insert-file-contents file)
@@ -104,7 +104,7 @@ Sidecar."
 
 (defun revu-fixture-sidecar-text (root name)
   "Return the raw text of the Sidecar called NAME under ROOT, or nil."
-  (let ((file (expand-file-name (format ".revu/%s.json" name) root)))
+  (let ((file (expand-file-name (format ".revu/reviews/%s.json" name) root)))
     (when (file-exists-p file)
       (with-temp-buffer
         (insert-file-contents file)

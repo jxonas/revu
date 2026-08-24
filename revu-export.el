@@ -39,6 +39,14 @@
 ;; What the reviewer keeps for themselves stays here: Reviewed marks say
 ;; what the reviewer has read and mean nothing to an agent, so the Export
 ;; never looks at them.
+;;
+;; One rendering, two sinks (ADR-0006's amendment).  `revu-export' writes
+;; the file, under `<project-root>/.revu/exports/', and hands an agent
+;; its path and the contract it is to write the Sidecar under.
+;; `revu-export-kill' puts the rendered markdown itself on the kill ring
+;; and writes nothing, for the pull request, the chat or the prompt the
+;; reviewer is about to paste it into.  What is pasted and what is on
+;; disk cannot drift, because neither renders anything of its own.
 
 ;;; Code:
 
@@ -53,6 +61,7 @@
 ;; file; naming it here would be a loading cycle.
 (defvar revu--sidecar)
 (declare-function revu-review "revu")
+(declare-function revu-export-file-name "revu")
 
 (defconst revu-export-agent-contract
   "Answer a question by setting that Annotation's reply string.  Append \
@@ -224,6 +233,27 @@ Asking for the Review first is what refuses a buffer that is not one."
   (revu-review)
   (revu-sidecar-file revu--sidecar))
 
+(defun revu-export--dropped-note (dropped)
+  "Return what to tell the reviewer about the DROPPED Annotations, or nil.
+An Annotation on the Review as a whole has no revdiff record, and a
+count said out loud is the whole of what ADR-0006 asks of either sink."
+  (when (> dropped 0)
+    (format "Dropped %d Annotation%s on the Review itself: \
+revdiff carries nothing that is not about a file"
+            dropped (if (= dropped 1) "" "s"))))
+
+(defun revu-export--said-with (note text)
+  "Return TEXT with NOTE, when there is one, said first."
+  (concat (if note (concat note ".  ") "") text))
+
+(defun revu-export--rendering ()
+  "Return the revdiff markdown of this Review and the note it comes with.
+That is (TEXT . NOTE): the rendering both sinks write, and what to say
+about the Annotations no rendering could carry, or nil."
+  (let ((placements (revu-annotate-placements (revu-review) default-directory)))
+    (cons (revu-export-text placements)
+          (revu-export--dropped-note (revu-export-dropped placements)))))
+
 (defun revu-export--hand-off (path &optional note)
   "Put PATH and the agent contract on the kill ring, and echo them.
 That pair is the whole handoff: where the file is, and what an agent
@@ -242,24 +272,19 @@ kept off the kill ring."
 (defun revu-export (&optional destination)
   "Write this Review as revdiff markdown, and hand the file to an agent.
 DESTINATION is the file to write; interactively a prefix argument asks
-for one, and otherwise it is `.revu/<review>.md', beside the Sidecar and
-overwritten every time.  Return the file written, or nil when the Review
-says nothing revdiff can carry -- an empty Export is no file at all,
-because every plugin reads an empty one as a review with nothing to say."
+for one, and otherwise it is `.revu/exports/<review>.md', overwritten
+every time.  Return the file written, or nil when the Review says nothing
+revdiff can carry -- an empty Export is no file at all, because every
+plugin reads an empty one as a review with nothing to say."
   (interactive (list (when current-prefix-arg
                        (read-file-name "Export the Review to: "))))
-  (let* ((placements (revu-annotate-placements (revu-review) default-directory))
-         (dropped (revu-export-dropped placements))
-         (text (revu-export-text placements))
+  (let* ((rendering (revu-export--rendering))
+         (text (car rendering))
          (file (expand-file-name
                 (or destination
-                    (concat (file-name-sans-extension
-                             (revu-export--sidecar-file))
-                            ".md")))))
-    (let ((note (when (> dropped 0)
-                  (format "Dropped %d Annotation%s on the Review itself: \
-revdiff carries nothing that is not about a file"
-                          dropped (if (= dropped 1) "" "s")))))
+                    (revu-export-file-name
+                     (revu-review-name (revu-review)) default-directory)))))
+    (let ((note (cdr rendering)))
       (if (string-empty-p text)
           (progn
             ;; An earlier Export of this Review is now a lie -- the
@@ -268,14 +293,41 @@ revdiff carries nothing that is not about a file"
             ;; truthful empty Export, so a stale one has to go.
             (when (file-exists-p file)
               (delete-file file))
-            (message "%sThis Review says nothing revdiff can carry; \
-nothing was written"
-                     (if note (concat note ".  ") ""))
+            (message "%s" (revu-export--said-with
+                           note "This Review says nothing revdiff can carry; \
+nothing was written"))
             nil)
+        (make-directory (file-name-directory file) t)
         (let ((coding-system-for-write 'utf-8-unix))
           (write-region text nil file nil 'silent))
         (revu-export--hand-off file note)
         file))))
+
+;;;###autoload
+(defun revu-export-kill ()
+  "Put this Review\\='s revdiff markdown on the kill ring, and write nothing.
+The other sink of the one rendering (ADR-0006\\='s amendment), for the
+pull request, the chat or the prompt the reviewer is about to paste it
+into.  It is a command of its own rather than a mode of `revu-export'
+so that the two hand-offs -- a path with the agent contract, and a body
+-- are never confused for one another.  Return the markdown copied, or
+nil when the Review says nothing revdiff can carry: an empty kill would
+put the reviewer\\='s last one out of reach for nothing."
+  (interactive)
+  (let* ((rendering (revu-export--rendering))
+         (text (car rendering))
+         (note (cdr rendering)))
+    (if (string-empty-p text)
+        (progn
+          (message "%s" (revu-export--said-with
+                         note "This Review says nothing revdiff can carry; \
+nothing was copied"))
+          nil)
+      (kill-new text)
+      (message "%s" (revu-export--said-with
+                     note (format "The Export of %s is on the kill ring"
+                                  (revu-review-name (revu-review)))))
+      text)))
 
 ;;;###autoload
 (defun revu-sidecar-path ()

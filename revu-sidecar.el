@@ -85,9 +85,13 @@ Review this revu understands; the file is left untouched either way."
 (defun revu--sidecar-write-text (file text)
   "Write TEXT to FILE atomically, through a temporary file in its directory.
 A reader never sees a half-written Sidecar: the rename is the moment the
-new Review becomes the file."
+new Review becomes the file.  The directory is made when it is not there
+yet: the write is what brings a Review into being on disk, so it is the
+write that brings its directory."
   (let* ((directory (file-name-directory file))
-         (temporary (make-temp-file (expand-file-name ".revu-" directory))))
+         (temporary (progn
+                      (make-directory directory t)
+                      (make-temp-file (expand-file-name ".revu-" directory)))))
     (unwind-protect
         (progn
           (let ((coding-system-for-write 'utf-8-unix))
@@ -117,16 +121,25 @@ the reviewer's next Annotation."
         (or (null text)
             (not (equal (revu-digest text) (revu-sidecar-digest sidecar))))))))
 
-(defun revu-sidecar-write (sidecar review)
-  "Write REVIEW to SIDECAR, unless its file changed underneath revu.
-Signal `revu-sidecar-changed' when it did, naming the reload that clears
-the block, and leave the file alone: an agent's edits are never
-overwritten by accident.  Return SIDECAR."
+(defun revu-sidecar-ensure-unchanged (sidecar)
+  "Signal `revu-sidecar-changed' when SIDECAR's file changed underneath revu.
+Every change to a Review passes here first, a deletion and a rename as
+much as a write: what an agent put in the file is never lost to a
+reviewer who has not read it yet.  Return SIDECAR when the file is still
+what revu read."
   (when (revu-sidecar-changed-p sidecar)
     (signal 'revu-sidecar-changed
             (list (format "%s changed on disk; read it again with `revu-reload' \
 before writing, or overwrite it with `revu-force-write'"
                           (revu-sidecar-file sidecar)))))
+  sidecar)
+
+(defun revu-sidecar-write (sidecar review)
+  "Write REVIEW to SIDECAR, unless its file changed underneath revu.
+Signal `revu-sidecar-changed' when it did, naming the reload that clears
+the block, and leave the file alone: an agent's edits are never
+overwritten by accident.  Return SIDECAR."
+  (revu-sidecar-ensure-unchanged sidecar)
   (revu--sidecar-store sidecar review))
 
 (defun revu-sidecar-force-write (sidecar review)

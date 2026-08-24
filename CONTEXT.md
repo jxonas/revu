@@ -66,6 +66,12 @@ the review state itself, not a flush of it, and the canonical record agents
 read.
 _Avoid_: Database, save file, dump
 
+**Scratch bucket**:
+The Review under the name derived from its Source, which every entry command
+opens and re-opens without asking. A Review given a name of its own with
+`revu-rename` stops being one.
+_Avoid_: Unnamed review, temporary review, draft
+
 **Source**:
 The thing under review: a diff or a plain file. A diff Source may carry a
 Narrowing.

@@ -431,7 +431,7 @@ The render says nothing rather than guessing which of them to accuse."
       (revu-fixture-goto-line-matching "^\\+alpha one changed$")
       (revu-reviewed-toggle))
     ;; Rewrite the Sidecar as an older revu would have left it.
-    (let ((file (expand-file-name ".revu/worktree.json" root)))
+    (let ((file (expand-file-name ".revu/reviews/worktree.json" root)))
       (with-temp-file file
         (insert (replace-regexp-in-string
                  "\"span\": *\\[[0-9]+, *[0-9]+\\], *" ""

@@ -399,17 +399,41 @@ against -- which is what re-locates a removed line later (ADR-0003)."
       (should (equal (revu-source-base source)
                      (revu-fixture-git-output root "rev-parse" "HEAD"))))))
 
-(ert-deftest revu-entry-commands-prompt-with-the-derived-review-name ()
-  "An entry command asked for no name prompts, offering the derived one."
+(ert-deftest revu-entry-commands-open-on-the-derived-name-without-a-prompt ()
+  "An entry command asked for no name opens on the derived one, silently."
   (revu-fixture-in-repo root
-    (let ((prompt nil))
+    (cl-letf (((symbol-function 'read-string)
+               (lambda (&rest _) (error "An entry command must not prompt"))))
+      (call-interactively #'revu-diff-worktree))
+    (should (get-buffer "*revu: worktree*"))))
+
+(ert-deftest revu-entry-commands-ask-for-a-name-under-a-prefix-argument ()
+  "A prefix argument asks for the name, with the derived one offered."
+  (revu-fixture-in-repo root
+    (let (prompt offered)
       (cl-letf (((symbol-function 'read-string)
                  (lambda (message &optional _initial _history default)
-                   (setq prompt message)
-                   default)))
-        (revu-diff-worktree))
+                   (setq prompt message offered default)
+                   "named-by-hand")))
+        (let ((current-prefix-arg '(4)))
+          (call-interactively #'revu-diff-worktree)))
       (should (string-match-p "worktree" prompt))
-      (should (get-buffer "*revu: worktree*")))))
+      ;; The derived name is the default, so a reviewer who asked for the
+      ;; prompt and then changed their mind lands back in the scratch
+      ;; bucket rather than beside it.
+      (should (equal offered "worktree"))
+      (should (get-buffer "*revu: named-by-hand*")))))
+
+(ert-deftest revu-entry-commands-do-not-inherit-a-callers-prefix-argument ()
+  "A prefix argument meant for another command never reaches an entry command.
+The magit Bridge calls these from inside magit's own commands, where a
+prefix argument means whatever magit read it as."
+  (revu-fixture-in-repo root
+    (cl-letf (((symbol-function 'read-string)
+               (lambda (&rest _) (error "A caller's prefix argument leaked"))))
+      (let ((current-prefix-arg '(4)))
+        (revu-diff-worktree)))
+    (should (get-buffer "*revu: worktree*"))))
 
 (ert-deftest revu-entry-command-resumes-the-review-already-there ()
   "Reviewing a Source again picks its Review up; it never clobbers it."
@@ -419,8 +443,8 @@ against -- which is what re-locates a removed line later (ADR-0003)."
                    (revu-annotation-create "note"
                                            (revu-target-file "alpha.txt")
                                            "written yesterday"))))
-      (make-directory (expand-file-name ".revu" root) t)
-      (with-temp-file (expand-file-name ".revu/worktree.json" root)
+      (make-directory (expand-file-name ".revu/reviews" root) t)
+      (with-temp-file (expand-file-name ".revu/reviews/worktree.json" root)
         (insert (revu-review-encode review))))
     (revu-diff-worktree "worktree")
     (let ((annotations (revu-review-annotations

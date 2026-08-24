@@ -228,29 +228,25 @@ derived Review name carries."
   "A refusal is a `user-error', and no Review is opened behind it."
   (should-error (revu-magit--run '(refuse . "no") nil) :type 'user-error))
 
-(ert-deftest revu-magit-still-prompts-for-the-review-name ()
-  "The name is offered, abbreviated, and the reviewer gets the last word."
+(ert-deftest revu-magit-opens-silently-on-the-abbreviated-name ()
+  "The Bridge asks nothing: the Review opens under its abbreviated name."
   (revu-fixture-in-repo root
-    (let ((prompt nil))
-      (cl-letf (((symbol-function 'read-string)
-                 (lambda (given &rest _) (setq prompt given) "named-by-hand")))
-        (revu-magit--run (revu-magit-revision-plan "feature" nil) nil))
-      (should (string-match-p
-               (regexp-quote (format "%s..%s"
-                                     (revu-magit-test--short root "feature^")
-                                     (revu-magit-test--short root "feature")))
-               prompt))
-      (should (get-buffer (revu-buffer-name "named-by-hand"))))))
+    (cl-letf (((symbol-function 'read-string)
+               (lambda (&rest _) (error "The Bridge must not prompt"))))
+      (revu-magit--run (revu-magit-revision-plan "feature" nil) nil))
+    (should (get-buffer
+             (revu-buffer-name (format "%s..%s"
+                                       (revu-magit-test--short root "feature^")
+                                       (revu-magit-test--short root "feature")))))))
 
 (ert-deftest revu-magit-opens-a-narrowed-review-over-magits-pathspecs ()
   "The pathspecs magit filtered by are the Narrowing the Review records."
   (revu-fixture-in-repo root
-    (cl-letf (((symbol-function 'read-string)
-               (lambda (_ &rest _rest) "narrowed")))
-      (revu-magit--run (revu-magit-plan nil nil '("beta.txt") 'unstaged)
-                       (revu-magit--caveats nil 'unstaged)))
+    (revu-magit--run (revu-magit-plan nil nil '("beta.txt") 'unstaged)
+                     (revu-magit--caveats nil 'unstaged))
     (should (equal (revu-source-paths
-                    (revu-review-source (revu-fixture-sidecar root "narrowed")))
+                    (revu-review-source
+                     (revu-fixture-sidecar root "worktree--beta.txt")))
                    '("beta.txt")))))
 
 (provide 'revu-magit-test)

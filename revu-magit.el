@@ -117,8 +117,8 @@ about to show."
 A branch name is already the name a reviewer would use.  An object id is
 not: names reach the Bridge from magit as full ids, and a Review called
 after one reads the way magit's log shows it, which is git's own
-abbreviation.  The name is prompted for, so the reviewer has the last
-word on it."
+abbreviation.  Nothing is prompted for, and a Review worth a name of its
+own is given one afterwards with `revu-rename'."
   (if (string-match-p "\\`[[:xdigit:]]\\{40,\\}\\'" revision)
       (or (revu-diff-abbreviate-revision (revu-magit--root) revision) revision)
     revision))
@@ -239,8 +239,9 @@ come to mean a different range tomorrow.  Return the same shapes
   "Carry out PLAN, then tell the reviewer NOTES.
 A refusal is a `user-error': the Review revu would have opened is not
 the diff magit was about to show, and opening it anyway would be the
-surprise.  The notes come after the Review is open so that the name
-prompt does not wipe them off the echo area."
+surprise.  The Review opens on the name derived from its Source and asks
+the reviewer nothing (ADR-0005's amendment), and the notes come after it
+so that they are the last thing said."
   (pcase-let ((`(,command . ,arguments) plan))
     (when (eq command 'refuse)
       (user-error "%s" arguments))
