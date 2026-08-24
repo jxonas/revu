@@ -137,6 +137,47 @@ different numbers."
         (revu-fixture-press-tab)
         (should-not (invisible-p (oref hunk start)))))))
 
+(ert-deftest revu-render-keeps-a-fold-the-reviewer-set-across-a-reload ()
+  "A section the reviewer folded is still folded on screen after a reload.
+Visibility survives a render because the render applies it: magit-section
+resolves the visibility of every section it builds, but only an invisible
+overlay hides anything, and the slot alone leaves the buffer expanded
+\(dcr-01m0rkxmpxza)."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((file (car (revu-fixture-sections 'revu-file-section))))
+        (magit-section-hide file)
+        (should (revu-fixture-hidden-on-screen-p file))
+        ;; The fold went into magit's visibility cache, which is what a
+        ;; render reads it back from: without an entry there this test
+        ;; would pass over a bug it cannot see.
+        (should magit-section-visibility-cache))
+      (revu-reload)
+      (should (revu-fixture-hidden-on-screen-p
+               (car (revu-fixture-sections 'revu-file-section)))))))
+
+(ert-deftest revu-render-keeps-a-global-collapse-across-a-reload ()
+  "Collapsing the whole buffer survives a reload, on screen and not just in the slot.
+`magit-section-cycle-global' is how a reviewer collapses everything at
+once, and it takes a different route to the same visibility than folding
+one section does."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (magit-section-cycle-global)
+      ;; A rename that changed nothing has no body to hide, and nothing to
+      ;; say about whether a fold held.
+      (cl-flet ((folded-files ()
+                  (seq-filter (lambda (file)
+                                (and (oref file content)
+                                     (< (oref file content) (oref file end))))
+                              (revu-fixture-sections 'revu-file-section))))
+        (should (folded-files))
+        (dolist (file (folded-files))
+          (should (revu-fixture-hidden-on-screen-p file)))
+        (revu-reload)
+        (dolist (file (folded-files))
+          (should (revu-fixture-hidden-on-screen-p file)))))))
+
 (ert-deftest revu-re-rendering-unchanged-state-changes-nothing ()
   "Reviewing the same Source again renders the same buffer, point and all.
 The buffer is a render of state: with the state unchanged there is

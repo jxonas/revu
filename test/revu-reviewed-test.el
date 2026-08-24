@@ -124,6 +124,45 @@ brings the mark into force again."
                       hidden))
         (should (equal (length (revu-reviewed-test--marks root "worktree")) 1))))))
 
+(ert-deftest revu-reviewed-toggle-collapses-on-screen-and-expands-again ()
+  "Marking collapses the hunk on screen, and unmarking opens it again.
+The collapse is the Reviewed mark rendered, not a `magit-section-hide'
+the command runs behind the render: the state decides what the reviewer
+sees (ADR-0008)."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-reviewed-toggle)
+      (should (revu-fixture-hidden-on-screen-p
+               (car (revu-reviewed-test--hunk-sections "alpha.txt"))))
+      (goto-char (oref (car (revu-reviewed-test--hunk-sections "alpha.txt"))
+                       start))
+      (revu-reviewed-toggle)
+      (should-not (revu-fixture-hidden-on-screen-p
+                   (car (revu-reviewed-test--hunk-sections "alpha.txt")))))))
+
+(ert-deftest revu-reviewed-mark-collapses-what-it-marks-on-a-fresh-render ()
+  "A hunk read in an earlier sitting comes back collapsed on screen."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +7 \\+alpha seven in the worktree$")
+      (revu-reviewed-toggle))
+    (revu-fixture-kill-review-buffers)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (should (revu-fixture-hidden-on-screen-p
+               (car (revu-reviewed-test--hunk-sections "alpha.txt")))))))
+
+(ert-deftest revu-reviewed-toggle-leaves-other-folds-alone ()
+  "Marking one hunk does not disturb a fold the reviewer set elsewhere."
+  (revu-fixture-in-repo root
+    (revu-reviewed-test--two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (magit-section-hide (revu-reviewed-test--section "beta.txt"))
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-reviewed-toggle)
+      (should (revu-fixture-hidden-on-screen-p
+               (revu-reviewed-test--section "beta.txt"))))))
+
 (ert-deftest revu-reviewed-toggle-marks-a-file-one-hunk-at-a-time ()
   "Marking a file reviewed takes a mark per hunk, never one over the file.
 A file-level mark could go on claiming the file was read after a hunk

@@ -13,6 +13,8 @@ What decided it:
 - Folding is native and uniform across files, hunks, and annotations; diff-mode needed `outline-minor-mode` bolted on and it only covers diff headings.
 - Render-from-state extends directly to plain-file review — render file lines instead of hunk lines. The diff-mode version carries diff assumptions a plain file doesn't satisfy.
 
+Visibility is rendered like everything else. The buffer is built anew every time, so what is folded is resolved — from the Reviewed marks, and from magit-section's visibility cache for the folds the reviewer set by hand — and then applied to the buffer at the end of the render. Nothing carries over on its own: resolving visibility only fills in a slot, and a render that stops there hands back a buffer that is fully expanded, whatever it decided.
+
 The costs, accepted: a dependency on `magit-section` from NonGNU ELPA (within the tolerance already set in the map's notes — never full magit internals), and owning a small diff parser plus renderer (~90 lines in the prototype) instead of getting the substrate free from `diff-mode`. Buffer text must be faced with `font-lock-face`, not `face`, or `global-font-lock-mode` strips it.
 
 ## Considered options

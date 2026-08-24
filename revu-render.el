@@ -31,6 +31,13 @@
 ;; HIDE argument, which is how a Reviewed mark will collapse what it
 ;; marks.
 ;;
+;; Visibility is part of what a render applies, not something the buffer
+;; carries over on its own: building the tree only resolves each
+;; section's `hidden' slot, and the render puts those slots on screen
+;; before it hands the buffer back.  A fold the reviewer set survives
+;; because magit-section's visibility cache resolves it again, not
+;; because the old overlay was left alone -- there is no old buffer.
+;;
 ;; Every source line carries a `revu-target' text property -- its path, its
 ;; number and its Origin -- so a command can tell what the reviewer is
 ;; pointing at, and a dim line-number prefix, because reviewers talk to
@@ -329,6 +336,13 @@ line, held it before."
                         (propertize (revu-diff-hunk-header hunk)
                                     'font-lock-face 'revu-hunk-heading))
                       (revu-render--lines hunk file width mine))))))))))
+    ;; Building the tree only resolves each section's visibility into its
+    ;; `hidden' slot; what hides text is an invisible overlay, and only
+    ;; `magit-section-hide' makes one.  Magit's own applier walks the tree
+    ;; and puts the slots on screen, so the render ends by calling it --
+    ;; without it every render comes back fully expanded, whatever it
+    ;; resolved (dcr-01m0rkxmpxza).
+    (magit-section-show magit-root-section)
     (revu-render--restore-point previous)))
 
 (defun revu-render--point-state ()
