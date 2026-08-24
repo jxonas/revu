@@ -34,10 +34,12 @@
 ;; state: what the block does is keep the mnemonics where the letter is
 ;; not a load-bearing motion, and move them where it is -- `x' deletes,
 ;; `gr' reloads, `gj'/`gk' and `C-j'/`C-k' walk sections, `gh' goes up,
-;; the brackets walk siblings, and the `z' keys fold.  Those are
-;; evil-collection's conventions for a magit-section buffer, bound by us,
-;; so the buffer behaves the same on vanilla evil, on Doom and on bare
-;; evil-collection rather than waiting on a module nobody here controls.
+;; the brackets walk siblings, the `z' keys fold, and `j'/`k' and the
+;; arrows move by visual line so that going up onto a collapsed heading
+;; lands on its first column.  Those are evil-collection's conventions
+;; for a magit-section buffer, bound by us, so the buffer behaves the
+;; same on vanilla evil, on Doom and on bare evil-collection rather than
+;; waiting on a module nobody here controls.
 ;;
 ;; `revu-dispatch' is the complete palette, and the only way to reach
 ;; three commands: `revu-force-write', which throws away what an agent
@@ -64,6 +66,8 @@
 
 (declare-function evil-define-key* "ext:evil-core" (state keymap key def &rest bindings))
 (declare-function evil-add-command-properties "ext:evil-common" (command &rest properties))
+(declare-function evil-next-visual-line "ext:evil-commands" (&optional count))
+(declare-function evil-previous-visual-line "ext:evil-commands" (&optional count))
 
 ;;;; Visiting what point is on
 
@@ -160,6 +164,14 @@ motion evil users rely on, and moved where it is: `x' deletes rather than
 and `z' where evil-collection puts them for a magit-section buffer.  No
 initial state is set: the buffer stays in normal state like any other.
 
+`j', `k', `<down>' and `<up>' are the visual-line motions rather than
+evil's logical-line ones.  Going up onto a collapsed section, a logical
+motion stops at the visible boundary just before the fold overlay, which
+is the *end* of the heading; a visual one keeps the column point was in,
+so `k' onto a collapsed heading lands where `j' onto it lands and where
+plain `previous-line' has always landed.  evil-collection puts these on
+the visual motions in magit's buffers for the same reason.
+
 `revu-reviewed-toggle' is also told to leave the final newline out of a
 linewise selection.  Before a command runs, evil widens a `V' selection
 to the start of the line after the last one selected, which is the first
@@ -178,6 +190,10 @@ same for magit's own buffers, and only for those."
                     (kbd "RET") #'revu-visit
                     (kbd "?") #'revu-dispatch
                     (kbd "q") #'quit-window
+                    (kbd "j") #'evil-next-visual-line
+                    (kbd "k") #'evil-previous-visual-line
+                    (kbd "<down>") #'evil-next-visual-line
+                    (kbd "<up>") #'evil-previous-visual-line
                     (kbd "gj") #'magit-section-forward
                     (kbd "gk") #'magit-section-backward
                     (kbd "C-j") #'magit-section-forward

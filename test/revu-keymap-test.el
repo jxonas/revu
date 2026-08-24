@@ -224,8 +224,31 @@ evil-collection does for a magit-section buffer, bound by revu itself."
     (should (eq (keymap-lookup map "z o") 'magit-section-show))
     (should (eq (keymap-lookup map "z c") 'magit-section-hide))
     (should (eq (keymap-lookup map "z r") 'magit-section-show-level-4-all))
-    ;; `k' is a motion under evil, so deleting moved off it entirely.
-    (should-not (keymap-lookup map "k"))))
+    ;; `k' is a motion under evil, so deleting moved off it entirely and
+    ;; the key stayed a motion.
+    (should (eq (keymap-lookup map "k") 'evil-previous-visual-line))))
+
+(ert-deftest revu-keymap-evil-moves-by-visual-line ()
+  "`j', `k' and the arrows are the visual-line motions, as in magit.
+Why they are is in the docstring of `revu-keymap-bind-evil': the
+logical-line motions stop at the fold overlay when they go up onto a
+collapsed heading.  What can be checked here is the placement -- that
+the four keys run evil's visual motions and nothing else."
+  (let ((map (revu-keymap-test--evil-map)))
+    (should (eq (keymap-lookup map "j") 'evil-next-visual-line))
+    (should (eq (keymap-lookup map "k") 'evil-previous-visual-line))
+    (should (eq (keymap-lookup map "<down>") 'evil-next-visual-line))
+    (should (eq (keymap-lookup map "<up>") 'evil-previous-visual-line))))
+
+(ert-deftest revu-keymap-leaves-the-line-motions-of-a-vanilla-emacs-alone ()
+  "Rebinding evil's `j' and `k' puts nothing on `C-n' and `C-p'.
+Those are what a reviewer without evil moves a line by, and neither revu
+nor anything it inherits from binds them: they stay the global line
+motions, which have always moved by visual line themselves."
+  (should-not (keymap-lookup revu-mode-map "C-n"))
+  (should-not (keymap-lookup revu-mode-map "C-p"))
+  (should-not (keymap-lookup (revu-keymap-test--evil-map) "C-n"))
+  (should-not (keymap-lookup (revu-keymap-test--evil-map) "C-p")))
 
 ;;;; The palette
 
