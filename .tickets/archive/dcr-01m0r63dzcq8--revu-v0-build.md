@@ -1,12 +1,13 @@
 ---
 id: dcr-01m0r63dzcq8
 title: revu v0 build
-status: open
+status: closed
 type: epic
 priority: 1
 mode: afk
 created: '2026-08-23T20:48:25.580767068Z'
-updated: '2026-08-23T20:52:40.901715382Z'
+updated: '2026-08-24T00:08:29.858794757Z'
+closed: '2026-08-24T00:08:29.858794757Z'
 links:
 - dcr-01m0nekb375q
 ---
@@ -102,3 +103,15 @@ Platform: Emacs 30.2+, GPL-3-or-later, package prefix `revu-`. Dependencies: `ma
 - This epic's child tickets are the implementation cut; their `deps` edges are the build order and their priorities encode core-first sequencing (annotate-and-export before comfort features).
 - The wayfinder map [revu: Emacs diff & file review with exportable annotations](dcr-01m0nekb375q) holds the full decision trail; `docs/adr/` holds the decisions themselves.
 - The agent contract text (kill-ring handoff) is fixed in ADR-0007: answer questions by setting `reply`; append new Annotations with fresh ULIDs; never delete or reorder; keep valid JSON; preserve unknown fields.
+
+## Notes
+
+**2026-08-24T00:08:29.858794757Z**
+
+revu v0 is built: ten tickets, five phases, five commits from 28109a0 to d9c2bf7. 156 ERT tests, eldev lint and eldev compile --warnings-as-errors all green.
+
+What a reviewer can do: open a read-only review buffer over the worktree, the index, a range of Revisions, a unified diff already in a buffer, or a single saved file; attach Annotations of an explicit Kind to a line, a region, a hunk, a file or the Review itself, and edit or delete them; mark hunks and files reviewed so they collapse and the buffer moves on; filter the render to what is unread or what is annotated; export the whole thing as the markdown revdiff's plugins already read; hand the sidecar or the export to an agent with one yank; and reload to see the agent's Replies inline under the questions they answer. Every mutation is written through to the Sidecar before the command returns, and Anchors re-locate feedback against the files as they are now.
+
+Built on the standalone magit-section with a first-party guarded evil block and a transient palette, with no dependency on full magit and none on evil.
+
+Three decisions were made during the build that the ADRs did not settle, each recorded in the run notes and, where it touches a decided ADR, filed rather than absorbed silently: a pasted diff records kind range from its own index headers or is refused (dcr-01m0r9smxsrv proposes a first-class Source, and notes that its Annotations anchor nothing); a hunk Annotation exports as a range over its added Origin; and the worktree Review diffs against HEAD, which makes ADR-0003's base-blob consequence stale (dcr-01m0rbfvtpkk proposes the amendment). Both are open, hitl, and post-v0.
