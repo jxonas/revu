@@ -223,6 +223,26 @@ and back -- and the fold it leaves behind is the invariant of ADR-0012."
      (should (revu-fixture-hidden-on-screen-p
               (car (revu-fixture-sections 'revu-file-section))))))
 
+(defun revu-fixture-hunk-section (path index)
+  "Return hunk INDEX of the sections rendered for PATH, counting from zero.
+Looked up afresh rather than held on to: every render builds the section
+tree anew, so a section a test kept from before the last one is not the
+section on screen."
+  (nth index (revu-fixture-hunk-sections path)))
+
+(defmacro revu-fixture-with-selection (first last &rest body)
+  "Run BODY with the region selecting the sibling sections FIRST to LAST.
+This is the drag magit-section reads as a section selection: both ends of
+the region sit in a heading, and the two headings are siblings.  Passing
+one section twice selects that section alone, which is what setting the
+mark and not moving does."
+  (declare (indent 2) (debug (form form body)))
+  `(let ((transient-mark-mode t))
+     (goto-char (oref ,first start))
+     (push-mark (point) t t)
+     (goto-char (oref ,last start))
+     ,@body))
+
 (defun revu-fixture-hidden-on-screen-p (section)
   "Return non-nil while the body of SECTION is invisible on screen.
 The `hidden' slot is magit-section's model of visibility and nothing

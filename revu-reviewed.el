@@ -47,14 +47,19 @@
 ;; span says which region it was, so a hunk an agent rewrote under the
 ;; reviewer is not confused with one nobody has read.
 ;;
-;; Marking collapses what it marks, badges its heading with the state, and
-;; moves the reviewer on to the next hunk they have not read.  Collapse is
-;; never the only sign that a mark was taken: it is ambiguous against a
-;; fold the reviewer made by hand, it goes when the section is opened
-;; again, and it is not there at all with hide-reviewed off.  Two buffer-local filters -- annotated-only
-;; and hide-reviewed -- shape the render and compose: reviewed and
-;; annotated are orthogonal, so a hunk with an open question can be
-;; marked reviewed and still be found by the annotated-only filter.
+;; Marking collapses what it marks, badges its heading with the state,
+;; and moves the reviewer on to the next hunk they have not read.  A
+;; region across sibling headings marks the whole run it selects, in one
+;; Sidecar write and one render; the selection is a gesture and is
+;; persisted nowhere, because the marks it leaves are the marks one press
+;; per section would have left (ADR-0008).  Collapse is never the only
+;; sign that a mark was taken: it is ambiguous against a fold the reviewer
+;; made by hand, it goes when the section is opened again, and it is not
+;; there at all with hide-reviewed off.  Two buffer-local filters --
+;; annotated-only and hide-reviewed -- shape the render and compose:
+;; reviewed and annotated are orthogonal, so a hunk with an open question
+;; can be marked reviewed and still be found by the annotated-only
+;; filter.
 ;;
 ;; Reviewed marks are reviewer-private: the Export drops them and the
 ;; agent contract says nothing about them.
@@ -328,32 +333,50 @@ that grew out of those lines."
   (dolist (digest digests review)
     (setq review (revu-review-remove-marks review digest))))
 
-(defun revu-reviewed--advance (from)
-  "Put point on the first unreviewed hunk section rendered after FROM.
-Point stays where it is when there is none: the reviewer has read to the
-end of what is rendered, and moving them anywhere else would be a guess."
-  (let ((review (revu-review))
-        (files revu--files)
-        (best nil))
-    (cl-labels ((walk (section)
-                  (when (and (null best)
-                             (object-of-class-p section 'revu-hunk-section)
-                             (>= (oref section start) from)
-                             (not (revu-reviewed-p review files
-                                                   (oref section value))))
-                    (setq best section))
-                  (unless best (mapc #'walk (oref section children)))))
-      (walk magit-root-section))
-    (when best
-      (goto-char (oref best start)))))
+(defun revu-reviewed--hunk-values (files)
+  "Return the value of every hunk of FILES, in Source order.
+A hunk's value is its identity across a render, so a walk over these
+finds what the buffer holds however the filters have shaped it."
+  (seq-mapcat (lambda (file)
+                (let ((path (revu-diff-file-path file)))
+                  (mapcar (lambda (hunk) (revu-render-hunk-value path hunk))
+                          (revu-diff-file-hunks file))))
+              files))
+
+(defun revu-reviewed--last-hunk (files value)
+  "Return the value of the last hunk of FILES the section valued VALUE covers.
+Nil when it covers none, which is a rename that changed no line."
+  (let ((hunks (revu-reviewed--hunks files value)))
+    (when hunks
+      (revu-render-hunk-value (revu-reviewed--path value) (car (last hunks))))))
+
+(defun revu-reviewed--advance (files after)
+  "Put point on the first unreviewed hunk rendered after AFTER, a hunk of FILES.
+The walk is over the Source's order rather than the buffer's, because
+with `revu-reviewed-hide-reviewed' on what was just marked has left the
+buffer and there is no section there to walk on from.
+
+Point stays where it is when nothing after AFTER is both unread and
+rendered: the reviewer has read to the end of what is shown, and moving
+them anywhere else would be a guess.  A plain file is read whole and
+renders no hunk section at all (ADR-0011), so there is nothing to advance
+to in one and point keeps its place."
+  (let* ((review (revu-review))
+         (rest (cdr (member after (revu-reviewed--hunk-values files))))
+         (next (seq-some (lambda (value)
+                           (and (not (revu-reviewed-p review files value))
+                                (revu-render-section-with-value value)))
+                         rest)))
+    (when next
+      (goto-char (oref next start)))))
 
 (defun revu-reviewed--forget-visibility (section)
   "Forget every fold a Reviewed mark on SECTION has just taken over.
-SECTION is what was toggled, so its own visibility and that of everything
-it covers is the marks' to decide again.  So is the file's: marking the
-last unread hunk of a file makes the file read.  Nothing else is
-forgotten -- a sibling hunk the reviewer folded by hand, and has not
-read, keeps its fold across the render."
+SECTION is one of the sections that was marked, so its own visibility and
+that of everything it covers is the marks' to decide again.  So is the
+file's: marking the last unread hunk of a file makes the file read.
+Nothing else is forgotten -- a sibling hunk the reviewer folded by hand,
+and has not read, keeps its fold across the render."
   (revu-render-forget-visibility-tree section)
   (let ((file (oref section parent)))
     (while (and file (not (object-of-class-p file 'revu-file-section)))
@@ -361,49 +384,103 @@ read, keeps its fold across the render."
     (when file
       (revu-render-forget-visibility file))))
 
+(defun revu-reviewed--selection ()
+  "Return the run of sibling sections under the region, or nil for none.
+The region means two things in a review buffer and this is the one that
+marks: beginning and ending in sibling headings, it selects the sections
+between them.  Inside one section's body it is a run of Source lines
+instead, which is what an Annotation is taken over.  `magit-region-sections'
+draws the line -- it answers nil unless both ends sit in a heading, which
+a body-internal region never does (ADR-0008)."
+  (magit-region-sections))
+
+(defun revu-reviewed--mark-sections (review files values unmark)
+  "Return REVIEW with the sections of FILES valued VALUES marked, or unmarked.
+UNMARK non-nil drops the marks over the content that is there now instead
+of taking them.  Every section is folded into the one Review returned
+rather than written as it is reached: a run of hunks is one Sidecar write
+and one render, and the render is what a large Source is expensive to
+redraw.
+
+Return (REVIEW . MARKED), where MARKED is the values something was
+asserted over.  A section with nothing to assert -- a rename that changed
+no line -- is passed over and is not in it."
+  (let ((marked nil))
+    (dolist (value values (cons review (nreverse marked)))
+      (let ((assertions (revu-reviewed--assertions files value)))
+        (when assertions
+          (push value marked)
+          (setq review
+                (if unmark
+                    (revu-reviewed--unmark review (mapcar #'car assertions))
+                  (revu-reviewed--mark review (revu-reviewed--path value)
+                                       assertions))))))))
+
+(defun revu-reviewed--place-point (files marked unmark)
+  "Put point where a gesture over the sections valued MARKED should leave it.
+Point goes back on the first of them, which is what the reviewer acted
+on, and then, unless UNMARK, on past the whole run to the next hunk of
+FILES they have not read.  With `revu-reviewed-hide-reviewed' on there is
+nothing left of the run to go back to, and only the move on happens."
+  (let ((rendered (revu-render-section-with-value (car marked))))
+    (when rendered
+      (goto-char (oref rendered start))))
+  (unless unmark
+    (revu-reviewed--advance files
+                            (revu-reviewed--last-hunk files
+                                                      (car (last marked))))))
+
 ;;;###autoload
-(defun revu-reviewed-toggle ()
+(defun revu-reviewed-toggle (&optional unmark)
   "Mark the hunk or file point is in reviewed, or unmark it.
 A hunk is marked on its own; a file is marked one hunk at a time, because
 a diff persists hunk marks only (ADR-0009).  Marking collapses what it
 marks and moves point on to the next hunk not read yet; unmarking drops
 only the marks over the content that is there now, so an assertion about
-content that has since changed is left where it is."
-  (interactive)
-  (let* ((section (revu-reviewed--section-at-point))
-         (value (oref section value))
+content that has since changed is left where it is.
+
+With the region selecting a run of sibling headings, every hunk or file
+in the run is marked in one gesture, in one Sidecar write and one render.
+A selection always marks and never flips, so a section in it that was
+already read keeps its mark.  Sections in it with nothing to mark are
+passed over and the skip is reported.
+
+With a prefix argument, UNMARK, the selection is unmarked instead -- or
+the section at point, when there is no selection."
+  (interactive "P")
+  (let* ((selection (revu-reviewed--selection))
+         (sections (or selection (list (revu-reviewed--section-at-point))))
+         (values (mapcar (lambda (section) (oref section value)) sections))
          (files revu--files)
-         (assertions (revu-reviewed--assertions files value))
-         (review (revu-review)))
-    (unless assertions
-      (user-error "There is nothing here to mark reviewed"))
-    (let ((marking (not (revu-reviewed-p review files value))))
-      (revu-sidecar-write revu--sidecar
-                          (if marking
-                              (revu-reviewed--mark review
-                                                   (revu-reviewed--path value)
-                                                   assertions)
-                            (revu-reviewed--unmark review
-                                                   (mapcar #'car assertions))))
+         (review (revu-review))
+         ;; Only a lone section flips: over a selection the reviewer is
+         ;; saying "I have read all of this", which is not an answer that
+         ;; depends on what each section was before (ADR-0009).
+         (unmark (if unmark
+                     t
+                   (and (not selection)
+                        (revu-reviewed-p review files (car values))))))
+    (pcase-let ((`(,written . ,marked)
+                 (revu-reviewed--mark-sections review files values unmark)))
+      (unless marked
+        (if selection
+            (user-error "Nothing in the selection can be marked reviewed")
+          (user-error "There is nothing here to mark reviewed")))
+      (revu-sidecar-write revu--sidecar written)
       ;; What the reviewer folded by hand outranks the HIDE a render
       ;; derives from the marks, and rightly so -- but where the marks
       ;; have just changed, they have the last word.  Forgetting the folds
       ;; there leaves the render free to collapse what was marked, and open
       ;; what was unmarked, from the state alone (ADR-0008).
-      (revu-reviewed--forget-visibility section)
+      (dolist (section sections)
+        (when (member (oref section value) marked)
+          (revu-reviewed--forget-visibility section)))
       (revu-render)
-      (let ((rendered (revu-render-section-with-value value)))
-        (cond
-         (rendered
-          (goto-char (oref rendered start))
-          (when marking
-            (revu-reviewed--advance (oref rendered end))))
-         ;; With hide-reviewed on, what was just marked is not in the
-         ;; buffer at all.  There is nothing to collapse, but the reviewer
-         ;; still asked to be moved on, so advance from where the render
-         ;; left them.
-         (marking
-          (revu-reviewed--advance (point))))))))
+      (revu-reviewed--place-point files marked unmark)
+      (let ((skipped (- (length values) (length marked))))
+        (when (> skipped 0)
+          (message "Skipped %d section%s with nothing to mark"
+                   skipped (if (= skipped 1) "" "s")))))))
 
 ;;;; The filters
 

@@ -19,6 +19,16 @@ The current-section highlight is specialised, not left alone. magit-section cove
 
 The costs, accepted: a dependency on `magit-section` from NonGNU ELPA (within the tolerance already set in the map's notes — never full magit internals), and owning a small diff parser plus renderer (~90 lines in the prototype) instead of getting the substrate free from `diff-mode`. Buffer text must be faced with `font-lock-face`, not `face`, or `global-font-lock-mode` strips it.
 
+## The region has two meanings
+
+`magit-section-mode` installs `magit-section--highlight-region` as `redisplay-highlight-region-function`, so a region that begins and ends in sibling headings is painted as a section selection rather than as an ordinary region. Revu takes that at its word: the region means one thing inside a section's body and another across sibling headings, and which one it is decides which command answers.
+
+Inside a body the region is a run of Source lines. That is a range Target, and `a` annotates it (ADR-0003). Across sibling headings the region is a selection of sections. That is a run to mark, and `r` marks every hunk or file in it in one gesture. `magit-region-sections` draws the line: it answers nil unless both ends of the region sit in a heading, which is exactly the case a body-internal region is not.
+
+The two meanings do not meet. There is no command that reads a selection as lines, and none that reads a body region as sections. Annotating a selection would need a Target kind spanning several files, which ADR-0003 refuses; marking a run of lines would need a mark over less than a hunk, which ADR-0009 refuses. Each meaning is the only one its half of the buffer can carry.
+
+The selection is a gesture and nothing more. Nothing about it is persisted: marking a run of eight hunks writes the same eight hunk marks that eight presses of `r` would write, and the Sidecar cannot tell the two apart.
+
 ## Considered options
 
 - Magit's paint protocol for the highlight — bind the `painted` slot and implement `magit-section-paint`, the way magit's own diff buffers keep their colours. It is the one escape that covers every section shape, at the cost of a repaint method, a pair of highlight-variant faces and a repaint on every move of point between sections. It can be adopted later without changing anything outside the renderer, so it is not foreclosed.

@@ -62,6 +62,15 @@ In the buffer: mark-reviewed is a toggle acting on the section at point
 collapses the section via `magit-insert-section`'s `HIDE` (ADR-0008) and
 auto-advances point to the next unreviewed section.
 
+It stops being a toggle as soon as more than one section is being acted on. A
+region across sibling headings selects a run, and a run always marks and never
+flips: the reviewer is saying "I have read all of this", which is not an answer
+that depends on what each section in the run was before, and a flip would unmark
+the hunks in it they had already read. Unmarking a run is a prefix argument
+instead, and the same argument unmarks the section at point. The records are the
+same either way — one mark per hunk, and the Sidecar cannot tell a run from one
+press per section (ADR-0008).
+
 Collapse is one of the two things marking does and never the only sign that it
 happened. The Reviewed state is rendered as a glyph on the section's heading —
 a check for `reviewed`, with the heading dimmed, and a distinct, undimmed

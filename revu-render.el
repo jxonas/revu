@@ -383,6 +383,14 @@ filter keeps it findable."
               (revu-render--placements-at placements (nth 1 line) (nth 0 line)))
             (revu-diff-hunk-lines hunk)))
 
+(defun revu-render-hunk-value (path hunk)
+  "Return the value a hunk section for HUNK of PATH is rendered with.
+A hunk is named to a render by its path and the `@@\' header it was
+rendered with; that pair is its identity across a render, which is how a
+command finds again what it acted on once the buffer has been built anew.
+Built here, in one place, so nothing can name a hunk two ways."
+  (cons path (revu-diff-hunk-header hunk)))
+
 (defun revu-render-diff (files &optional hidden-p placements keep-p state-p)
   "Render FILES, a list of `revu-diff-file', into the current buffer.
 HIDDEN-P is called with the value of each file and hunk section and
@@ -440,7 +448,7 @@ that as this render can put it."
                          (let ((hunk (cdr numbered)))
                            (or plain (null keep-p)
                                (funcall keep-p
-                                        (cons path (revu-diff-hunk-header hunk))
+                                        (revu-render-hunk-value path hunk)
                                         (revu-render--annotated-p mine hunk)))))
                        (seq-map-indexed (lambda (hunk index)
                                           (cons index hunk))
@@ -460,7 +468,7 @@ that as this render can put it."
                 ;; lines sit flat under the one file section (ADR-0011).
                 (if plain
                     (revu-render--lines hunk file width mine)
-                  (let ((value (cons path (revu-diff-hunk-header hunk))))
+                  (let ((value (revu-render-hunk-value path hunk)))
                     (magit-insert-section (revu-hunk-section
                                            value
                                            (and hidden-p

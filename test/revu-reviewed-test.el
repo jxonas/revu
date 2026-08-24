@@ -390,5 +390,220 @@ many of its hunks are read is the question being asked of its heading."
         (should (string-suffix-p revu-render-reviewed-glyph heading))
         (should-not (string-match-p "/" heading))))))
 
+;;;; Marking a run in one gesture
+
+(ert-deftest revu-reviewed-toggle-marks-a-selected-run-of-hunks ()
+  "A region spanning sibling hunk headings marks every hunk it covers.
+One press, one mark per hunk: the run is a gesture, and what it leaves
+behind is the same marks eight presses would have left."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)
+          (revu-fixture-hunk-section "alpha.txt" 1)
+        (revu-reviewed-toggle))
+      (let ((marks (revu-reviewed-test--marks root "worktree")))
+        (should (equal (mapcar #'revu-mark-digest marks)
+                       (list (revu-digest revu-reviewed-test--first-alpha-hunk)
+                             (revu-digest
+                              revu-reviewed-test--second-alpha-hunk))))))))
+
+(ert-deftest revu-reviewed-toggle-marks-a-selected-run-of-files ()
+  "A region spanning sibling file headings marks every hunk under them.
+A file is still marked one hunk at a time (ADR-0009); selecting two of
+them only says which files."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-with-selection (revu-reviewed-test--section "alpha.txt")
+          (revu-reviewed-test--section "beta.txt")
+        (revu-reviewed-toggle))
+      (should (equal (mapcar #'revu-mark-path
+                             (revu-reviewed-test--marks root "worktree"))
+                     '("alpha.txt" "alpha.txt" "beta.txt"))))))
+
+(ert-deftest revu-reviewed-toggle-reads-a-region-inside-a-hunk-as-no-selection ()
+  "A region inside one hunk's body is a run of lines, not a run of sections.
+It marks the hunk point is in, exactly as no region at all would."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((transient-mark-mode t))
+        (revu-fixture-goto-line-matching "^ +2  alpha two$")
+        (push-mark (point) t t)
+        (revu-fixture-goto-line-matching "^ +4  alpha four$")
+        (revu-reviewed-toggle))
+      (should (equal (mapcar #'revu-mark-digest
+                             (revu-reviewed-test--marks root "worktree"))
+                     (list (revu-digest
+                            revu-reviewed-test--first-alpha-hunk)))))))
+
+(ert-deftest revu-reviewed-annotates-a-region-inside-a-hunk-as-a-range ()
+  "The same region an Annotation is taken over is still a range Target.
+The region has two meanings in the review buffer and this is the other
+one: inside a body it is Source lines, and `a' has not changed."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((transient-mark-mode t))
+        (revu-fixture-goto-line-matching "^ +2  alpha two$")
+        (push-mark (point) t t)
+        (revu-fixture-goto-line-matching "^ +4  alpha four$")
+        (revu-annotate "change" "About these lines"))
+      (let ((annotations (append (revu-review-annotations
+                                  (revu-fixture-sidecar root "worktree"))
+                                 nil)))
+        (should (equal (length annotations) 1))
+        (should (equal (revu-target-kind
+                        (revu-annotation-target (car annotations)))
+                       "range"))))))
+
+(ert-deftest revu-reviewed-toggle-marks-the-rest-of-a-selection ()
+  "A selection marks and never flips, so a hunk already read keeps its mark."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
+      (revu-reviewed-toggle)
+      (should (equal (length (revu-reviewed-test--marks root "worktree")) 1))
+      (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)
+          (revu-fixture-hunk-section "alpha.txt" 1)
+        (revu-reviewed-toggle))
+      (should (equal (mapcar #'revu-mark-digest
+                             (revu-reviewed-test--marks root "worktree"))
+                     (list (revu-digest revu-reviewed-test--first-alpha-hunk)
+                           (revu-digest
+                            revu-reviewed-test--second-alpha-hunk)))))))
+
+(ert-deftest revu-reviewed-toggle-unmarks-a-selection-with-a-prefix-argument ()
+  "A prefix argument unmarks the run the region selects."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)
+          (revu-fixture-hunk-section "alpha.txt" 1)
+        (revu-reviewed-toggle))
+      (should (equal (length (revu-reviewed-test--marks root "worktree")) 2))
+      (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)
+          (revu-fixture-hunk-section "alpha.txt" 1)
+        (revu-reviewed-toggle t))
+      (should (equal (revu-reviewed-test--marks root "worktree") nil)))))
+
+(ert-deftest revu-reviewed-toggle-unmarks-the-section-at-point-with-a-prefix ()
+  "With no selection a prefix argument unmarks, and never marks."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      ;; An unread hunk is not marked by the argument that unmarks.
+      (revu-reviewed-toggle t)
+      (should (equal (revu-reviewed-test--marks root "worktree") nil))
+      (revu-reviewed-toggle)
+      (should (equal (length (revu-reviewed-test--marks root "worktree")) 1))
+      (revu-fixture-goto-line-matching revu-fixture-worktree-seven)
+      (revu-reviewed-toggle t)
+      (should (equal (revu-reviewed-test--marks root "worktree") nil)))))
+
+(ert-deftest revu-reviewed-toggle-skips-what-has-nothing-to-mark ()
+  "A rename that changed no line has no assertion to make, and is passed over.
+The rest of the selection is marked, and the reviewer is told what was
+left out rather than being left to count marks."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((said nil))
+        (cl-letf (((symbol-function 'message)
+                   (lambda (format &rest arguments)
+                     (push (apply #'format format arguments) said))))
+          (revu-fixture-with-selection
+              (revu-reviewed-test--section "beta.txt")
+              (revu-reviewed-test--section "gamma.txt")
+            (revu-reviewed-toggle)))
+        (should (equal (mapcar #'revu-mark-path
+                               (revu-reviewed-test--marks root "worktree"))
+                       '("beta.txt" "gamma.txt")))
+        (should (seq-find (lambda (line)
+                            (string-match-p "Skipped 1 section" line))
+                          said))))))
+
+(ert-deftest revu-reviewed-toggle-refuses-a-selection-with-nothing-to-mark ()
+  "A selection of nothing markable is an error, not a silent no-op."
+  (revu-fixture-in-repo root
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((renamed (revu-reviewed-test--section "delta-renamed.txt")))
+        (should-error (revu-fixture-with-selection renamed renamed
+                        (revu-reviewed-toggle))
+                      :type 'user-error))
+      (should (equal (revu-reviewed-test--marks root "worktree") nil)))))
+
+(ert-deftest revu-reviewed-toggle-writes-and-renders-once-for-a-run ()
+  "The whole gesture is one Sidecar write and one render.
+A write per hunk would mean a render per hunk, and the render is what a
+large Source is expensive to redraw."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (let ((writes 0)
+            (renders 0)
+            (write (symbol-function 'revu-sidecar-write))
+            (render (symbol-function 'revu-render)))
+        (cl-letf (((symbol-function 'revu-sidecar-write)
+                   (lambda (&rest arguments)
+                     (setq writes (1+ writes))
+                     (apply write arguments)))
+                  ((symbol-function 'revu-render)
+                   (lambda (&rest arguments)
+                     (setq renders (1+ renders))
+                     (apply render arguments))))
+          (revu-fixture-with-selection
+              (revu-reviewed-test--section "alpha.txt")
+              (revu-reviewed-test--section "beta.txt")
+            (revu-reviewed-toggle)))
+        (should (equal (length (revu-reviewed-test--marks root "worktree")) 3))
+        (should (equal writes 1))
+        (should (equal renders 1))))))
+
+(ert-deftest revu-reviewed-toggle-advances-past-a-marked-run ()
+  "Marking a run moves the reviewer on to the first hunk it did not cover."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)
+          (revu-fixture-hunk-section "alpha.txt" 1)
+        (revu-reviewed-toggle))
+      (should (equal (point)
+                     (oref (car (revu-fixture-hunk-sections "beta.txt"))
+                           start))))))
+
+(ert-deftest revu-reviewed-toggle-advances-past-a-run-with-hide-reviewed-on ()
+  "With the run gone from the buffer, the move on to unread work survives.
+Advancing from where point ended up would leave the reviewer above the
+run and re-offer the hunks they just read."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (revu-reviewed-toggle-hide-reviewed)
+      (unwind-protect
+          (progn
+            (revu-fixture-with-selection
+                (revu-fixture-hunk-section "alpha.txt" 0)
+                (revu-fixture-hunk-section "alpha.txt" 1)
+              (revu-reviewed-toggle))
+            (should-not (string-match-p "alpha" (revu-fixture-render)))
+            (should (equal (point)
+                           (oref (car (revu-fixture-hunk-sections "beta.txt"))
+                                 start))))
+        (setq revu-reviewed-hide-reviewed nil)))))
+
+(ert-deftest revu-reviewed-toggle-leaves-a-fold-outside-the-selection-alone ()
+  "A hunk the reviewer folded by hand, outside the run, keeps its fold."
+  (revu-fixture-in-repo root
+    (revu-fixture-two-hunk-alpha root)
+    (with-current-buffer (revu-diff-worktree "worktree")
+      (magit-section-hide (car (revu-fixture-hunk-sections "beta.txt")))
+      (revu-fixture-with-selection (revu-fixture-hunk-section "alpha.txt" 0)
+          (revu-fixture-hunk-section "alpha.txt" 1)
+        (revu-reviewed-toggle))
+      (should (revu-fixture-hidden-on-screen-p
+               (car (revu-fixture-hunk-sections "beta.txt")))))))
+
 (provide 'revu-reviewed-test)
 ;;; revu-reviewed-test.el ends here
