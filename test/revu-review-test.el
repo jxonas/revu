@@ -244,5 +244,48 @@ write guard blocks on."
       (should (buffer-live-p buffer)))
     (should (file-exists-p (revu-review-test--sidecar-file root "worktree")))))
 
+;;;; A Source with nothing in it
+
+(defun revu-review-test--commit-everything (root)
+  "Commit everything the fixture repository at ROOT carries.
+Nothing is then staged and the worktree matches HEAD, which is the state
+a reviewer who reaches for revu in the wrong project is in."
+  (revu-fixture-git-output root "add" "-A")
+  (revu-fixture-git-output root "commit" "-q" "-m" "Everything"))
+
+(ert-deftest revu-staged-refuses-an-empty-index-and-says-where ()
+  "An empty index refuses by name rather than opening an empty buffer."
+  (revu-fixture-in-repo root
+    (revu-review-test--commit-everything root)
+    (let ((message (cadr (should-error (revu-diff-staged) :type 'user-error))))
+      (should (string-match-p "staged" message))
+      (should (string-match-p (regexp-quote (file-truename root)) message)))
+    (should-not (revu-fixture-sidecar root "staged"))
+    (should-not (get-buffer (revu-buffer-name "staged")))))
+
+(ert-deftest revu-worktree-refuses-a-worktree-that-matches-head ()
+  "A worktree carrying nothing HEAD does not opens no Review."
+  (revu-fixture-in-repo root
+    (revu-review-test--commit-everything root)
+    (let ((message (cadr (should-error (revu-diff-worktree) :type 'user-error))))
+      (should (string-match-p "worktree" message))
+      (should (string-match-p (regexp-quote (file-truename root)) message)))
+    (should-not (revu-fixture-sidecar root "worktree"))))
+
+(ert-deftest revu-range-refuses-two-revisions-that-differ-by-nothing ()
+  "A range whose ends hold the same tree is a Review of nothing."
+  (revu-fixture-in-repo root
+    (let ((message (cadr (should-error (revu-diff-range "HEAD" "HEAD")
+                                       :type 'user-error))))
+      (should (string-match-p "HEAD\\.\\.HEAD" message)))))
+
+(ert-deftest revu-narrowing-that-matches-nothing-names-the-pathspecs ()
+  "A Narrowing the Source has no file under says which pathspecs those were."
+  (revu-fixture-in-repo root
+    (let ((message (cadr (should-error (revu-diff-staged nil '("README.md"))
+                                       :type 'user-error))))
+      (should (string-match-p "README\\.md" message)))
+    (should-not (revu-fixture-sidecar root "staged-README.md"))))
+
 (provide 'revu-review-test)
 ;;; revu-review-test.el ends here

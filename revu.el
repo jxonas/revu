@@ -478,6 +478,26 @@ resumed Review carries is echoed.  Return the review buffer."
     (revu--resumed-message (revu-sidecar-review sidecar) placements)
     buffer))
 
+(defun revu--narrowing-subject (paths)
+  "Return what to say about the Narrowing PATHS in a refusal, or nothing.
+A narrowed Source that came up empty is a different thing from an empty
+Source, and the reviewer who narrowed from magit never typed the
+pathspecs and cannot be expected to guess them."
+  (if paths
+      (format " under %s" (string-join paths ", "))
+    ""))
+
+(defun revu--diff-files (files subject)
+  "Return the parsed FILES, or refuse to open a Review over none of them.
+SUBJECT says what was diffed and where, and is the whole message a
+reviewer gets: an empty diff renders an empty buffer, and a buffer with
+nothing in it cannot say whether revu failed, whether the Narrowing
+matched nothing, or whether the Source is genuinely empty.  Naming what
+was diffed is what makes a Source taken in the wrong project -- the
+common way to reach here -- explain itself.  Refusing also keeps a
+Sidecar from being written for a Review of nothing."
+  (or files (user-error "%s" subject)))
+
 ;;;###autoload
 (defun revu-diff-worktree (&optional name paths)
   "Review everything the worktree carries that HEAD does not.
@@ -493,7 +513,10 @@ narrows."
          (source (revu-source-worktree revision paths))
          (name (revu--review-name source name)))
     (revu--open source
-                (revu-diff-parse (revu-diff-worktree-text root revision paths))
+                (revu--diff-files
+                 (revu-diff-parse (revu-diff-worktree-text root revision paths))
+                 (format "The worktree at %s carries nothing HEAD does not%s"
+                         root (revu--narrowing-subject paths)))
                 name)))
 
 ;;;###autoload
@@ -506,7 +529,11 @@ the Source to those pathspecs, and is never prompted for."
   (let* ((root (revu-project-root default-directory))
          (source (revu-source-staged (revu-diff-head-revision root) paths))
          (name (revu--review-name source name)))
-    (revu--open source (revu-diff-parse (revu-diff-staged-text root paths))
+    (revu--open source
+                (revu--diff-files
+                 (revu-diff-parse (revu-diff-staged-text root paths))
+                 (format "Nothing is staged in %s to review%s"
+                         root (revu--narrowing-subject paths)))
                 name)))
 
 ;;;###autoload
@@ -528,7 +555,10 @@ Review resumes itself rather than the full one."
                                     (revu--resolve root head)
                                     paths)))
     (revu--open source
-                (revu-diff-parse (revu-diff-range-text root base head paths))
+                (revu--diff-files
+                 (revu-diff-parse (revu-diff-range-text root base head paths))
+                 (format "%s..%s changes nothing in %s to review%s"
+                         base head root (revu--narrowing-subject paths)))
                 name)))
 
 (defun revu--resolve (root revision)

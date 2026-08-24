@@ -197,6 +197,12 @@ Review is read through, whoever wrote the record."
     (revu-diff-range "HEAD^" "HEAD" "full")
     (should-not (assq 'paths (revu-review-source
                               (revu-fixture-sidecar root "full"))))
+    ;; The commit above left the index and the worktree empty, and revu
+    ;; refuses a Source with nothing in it; these two are given something
+    ;; to review so that what is asserted is the Narrowing.
+    (revu-fixture-write-file root "beta.txt" "beta one\nbeta staged again\n")
+    (revu-fixture-git-output root "add" "beta.txt")
+    (revu-fixture-write-file root "alpha.txt" "alpha in the worktree\n")
     (revu-diff-worktree "worktree-full")
     (should-not (assq 'paths (revu-review-source
                               (revu-fixture-sidecar root "worktree-full"))))
