@@ -197,30 +197,19 @@ end of what is rendered, and moving them anywhere else would be a guess."
     (when best
       (goto-char (oref best start)))))
 
-(defun revu-reviewed--forget-visibility-1 (section)
-  "Drop the visibility memoised for SECTION and for the sections under it.
-An Annotation's fold is the reviewer's own and says nothing about what
-has been read, so it and the sections under it are left alone."
-  (when (or (object-of-class-p section 'revu-file-section)
-            (object-of-class-p section 'revu-hunk-section))
-    (setq magit-section-visibility-cache
-          (assoc-delete-all (magit-section-ident section)
-                            magit-section-visibility-cache))
-    (mapc #'revu-reviewed--forget-visibility-1 (oref section children))))
-
 (defun revu-reviewed--forget-visibility (section)
-  "Drop the memoised visibility of the file SECTION belongs to, hunks and all.
-The memo is how a fold the reviewer set by hand outlives the render that
-built the section, and it outranks the HIDE that render derives from the
-Reviewed marks.  A mark changes what has been read of a whole file --
-mark the last unread hunk and the file is read -- so it is the file's
-memo and every hunk's under it that has to go, leaving the marks to
-decide what the next render collapses."
-  (let ((file section))
-    (while (and (oref file parent)
-                (not (object-of-class-p file 'revu-file-section)))
+  "Forget every fold a Reviewed mark on SECTION has just taken over.
+SECTION is what was toggled, so its own visibility and that of everything
+it covers is the marks' to decide again.  So is the file's: marking the
+last unread hunk of a file makes the file read.  Nothing else is
+forgotten -- a sibling hunk the reviewer folded by hand, and has not
+read, keeps its fold across the render."
+  (revu-render-forget-visibility-tree section)
+  (let ((file (oref section parent)))
+    (while (and file (not (object-of-class-p file 'revu-file-section)))
       (setq file (oref file parent)))
-    (revu-reviewed--forget-visibility-1 file)))
+    (when file
+      (revu-render-forget-visibility file))))
 
 ;;;###autoload
 (defun revu-reviewed-toggle ()
@@ -246,11 +235,10 @@ content that has since changed is left where it is."
                                                    digests)
                             (revu-reviewed--unmark review digests)))
       ;; What the reviewer folded by hand outranks the HIDE a render
-      ;; derives from the marks, and rightly so -- but the section just
-      ;; toggled is the one place the marks have the last word.  Dropping
-      ;; what magit memoised for it leaves the render free to collapse
-      ;; what was marked, and open what was unmarked, from the state
-      ;; alone; every other fold keeps its memo and comes back.
+      ;; derives from the marks, and rightly so -- but where the marks
+      ;; have just changed, they have the last word.  Forgetting the folds
+      ;; there leaves the render free to collapse what was marked, and open
+      ;; what was unmarked, from the state alone (ADR-0008).
       (revu-reviewed--forget-visibility section)
       (revu-render)
       (let ((rendered (revu-render-section-with-value value)))

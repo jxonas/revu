@@ -142,7 +142,7 @@ different numbers."
 Visibility survives a render because the render applies it: magit-section
 resolves the visibility of every section it builds, but only an invisible
 overlay hides anything, and the slot alone leaves the buffer expanded
-\(dcr-01m0rkxmpxza)."
+\(ADR-0008)."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree "worktree")
       (let ((file (car (revu-fixture-sections 'revu-file-section))))

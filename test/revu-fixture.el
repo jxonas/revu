@@ -169,8 +169,8 @@ With CLASS, return only the sections of that class."
   "Return non-nil while the body of SECTION is invisible on screen.
 The `hidden' slot is magit-section's model of visibility and nothing
 more: what hides text is an invisible overlay, so a test that reads the
-slot can pass over a buffer the reviewer sees fully expanded
-\(dcr-01m0rkxmpxza).  A test asserts on this instead."
+slot can pass over a buffer the reviewer sees fully expanded.  A test
+asserts on this instead."
   (let ((content (oref section content)))
     (and content (invisible-p content))))
 

@@ -153,15 +153,22 @@ sees (ADR-0008)."
                (car (revu-reviewed-test--hunk-sections "alpha.txt")))))))
 
 (ert-deftest revu-reviewed-toggle-leaves-other-folds-alone ()
-  "Marking one hunk does not disturb a fold the reviewer set elsewhere."
+  "Marking one hunk disturbs no fold the reviewer set, in this file or another.
+The marks decide what the section just toggled looks like, and the file
+it is in, because marking the last unread hunk makes the file read.  A
+hunk beside it that the reviewer folded by hand and has not read is
+neither, and stays folded."
   (revu-fixture-in-repo root
     (revu-reviewed-test--two-hunk-alpha root)
     (with-current-buffer (revu-diff-worktree "worktree")
       (magit-section-hide (revu-reviewed-test--section "beta.txt"))
+      (magit-section-hide (nth 1 (revu-reviewed-test--hunk-sections "alpha.txt")))
       (revu-fixture-goto-line-matching "^ +1 \\+alpha one changed$")
       (revu-reviewed-toggle)
       (should (revu-fixture-hidden-on-screen-p
-               (revu-reviewed-test--section "beta.txt"))))))
+               (revu-reviewed-test--section "beta.txt")))
+      (should (revu-fixture-hidden-on-screen-p
+               (nth 1 (revu-reviewed-test--hunk-sections "alpha.txt")))))))
 
 (ert-deftest revu-reviewed-toggle-marks-a-file-one-hunk-at-a-time ()
   "Marking a file reviewed takes a mark per hunk, never one over the file.

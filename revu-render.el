@@ -341,9 +341,29 @@ line, held it before."
     ;; `magit-section-hide' makes one.  Magit's own applier walks the tree
     ;; and puts the slots on screen, so the render ends by calling it --
     ;; without it every render comes back fully expanded, whatever it
-    ;; resolved (dcr-01m0rkxmpxza).
+    ;; resolved (ADR-0008).
     (magit-section-show magit-root-section)
     (revu-render--restore-point previous)))
+
+(defun revu-render-forget-visibility (section)
+  "Drop the visibility magit-section memoised for SECTION.
+The memo is how a fold the reviewer set by hand outlives the render that
+built the section: the next render reads it back and resolves the same
+visibility.  It outranks the HIDE a render derives from the Review's
+state, so a command whose change of state is what should decide how a
+section looks has to forget the memo first."
+  (setq magit-section-visibility-cache
+        (assoc-delete-all (magit-section-ident section)
+                          magit-section-visibility-cache)))
+
+(defun revu-render-forget-visibility-tree (section)
+  "Forget the memoised visibility of SECTION and of the sections under it.
+An Annotation, and anything under one, is left alone: its fold is the
+reviewer's own and no state of the Review decides it."
+  (when (or (object-of-class-p section 'revu-file-section)
+            (object-of-class-p section 'revu-hunk-section))
+    (revu-render-forget-visibility section)
+    (mapc #'revu-render-forget-visibility-tree (oref section children))))
 
 (defun revu-render--point-state ()
   "Return where point is, as the section it is in and the line it is on."
