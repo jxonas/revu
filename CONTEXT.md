@@ -61,7 +61,7 @@ The immutable commit a diff Source was generated from.
 _Avoid_: Ref, version, base (bare)
 
 **Sidecar**:
-The JSON file under `<project-root>/.revu/` that persists one Review. It is
+The JSON file under `<project-root>/.revu/reviews/` that persists one Review. It is
 the review state itself, not a flush of it, and the canonical record agents
 read.
 _Avoid_: Database, save file, dump

@@ -34,3 +34,20 @@ The Export writes to `.revu/<review>.md` beside the sidecar, overwritten on
 each export; a prefix argument prompts for an alternate destination. The
 export command and `revu-sidecar-path` both push the absolute path to the
 kill ring and echo it — that path is what the reviewer hands the agent.
+
+## Amendment: the Export has a second sink, the kill ring; files move to `exports/`
+
+The file Export hands an agent a path plus the agent contract on the kill
+ring; nothing put the rendered text itself where a reviewer could paste it
+into a pull request, a chat, or a prompt. `revu-export-kill` renders the same
+revdiff markdown and puts the body on the kill ring, writing nothing to disk.
+It is a separate command rather than a prefix-argument mode of `revu-export`
+so that the two hand-offs — a path with a contract, and a body — are never
+confused, and the file Export keeps its contract intact. The rendering is
+shared unchanged: one rendering, two sinks, so what is pasted and what is on
+disk never drift. A human-facing rendering that keeps review-level
+Annotations is a separate exporter, additive later as this ADR already
+allows, not a variant of this one.
+
+Per the amendment to ADR-0005, the file Export now writes to
+`.revu/exports/<review>.md` rather than beside the Sidecar.
