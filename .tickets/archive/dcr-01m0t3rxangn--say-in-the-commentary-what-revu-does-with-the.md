@@ -1,21 +1,22 @@
 ---
 id: dcr-01m0t3rxangn
 title: Say in the Commentary what revu does with the reviewer's magit-section configuration
-status: open
+status: closed
 type: task
 priority: 3
 mode: afk
 created: '2026-08-24T14:46:12.561000279Z'
-updated: '2026-08-24T20:06:48.311210943Z'
+updated: '2026-08-25T02:06:53.847303350Z'
+closed: '2026-08-25T02:06:53.847303350Z'
 acceptance:
 - title: revu.el's Commentary states that revu inherits rather than overrides magit-section configuration
-  done: false
+  done: true
 - title: It names both variables revu binds buffer-locally, and says they defend the fold invariant rather than an appearance
-  done: false
+  done: true
 - title: It shows the revu-mode-hook form a reviewer would write to change anything else
-  done: false
+  done: true
 - title: No new defcustom and no README are added
-  done: false
+  done: true
 deps:
 - dcr-01m0t3r7pwkk
 - dcr-01m0t3rkpff2
@@ -41,3 +42,7 @@ Ships no defcustom. A reviewer who wants something different writes a 'revu-mode
 **2026-08-24T18:05:36.445024057Z**
 
 The magit posture paragraph now has a second half (ADR-0013, dcr-01m0tf5gqcc1): revu-section configuration is inherited, and magit proper is reached only through the opt-in, experimental revu-magit-mode, which lives in its own file and is never loaded by the core. When the Commentary is written, say both in the same paragraph so a reader sees one stance, not two. If this ticket lands before the mode does, name the mode as forthcoming; ADR-0013 is the reference either way.
+
+**2026-08-25T02:06:53.847303350Z**
+
+Documented revu's inherited magit-section configuration, the two fold-preserving exceptions, a revu-mode-hook override example, and the opt-in magit bridge in revu.el's Commentary.

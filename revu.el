@@ -44,15 +44,28 @@
 ;; amendment: a reviewer carrying Sidecars and Exports from then moves
 ;; them into `reviews/' and `exports/' by hand, once.
 ;;
-;; A reviewer who has magit can pick what to review with magit's own
-;; commands, through `revu-magit-mode' in `revu-magit.el'.  That mode is
-;; experimental (ADR-0013), off by default, and the only place revu
-;; reaches past `magit-section' into magit: it appends a "Review in
-;; revu" switch to the `magit-diff' transient and advises the functions
-;; magit's diff commands funnel through.  Since those are magit's
-;; commands, magit's semantics stand -- a commit selection in a log
-;; reviews `oldest..newest', leaving the oldest selected commit's own
-;; changes out.  Nothing in this file loads magit.
+;; revu inherits the reviewer's `magit-section' configuration rather
+;; than overriding it.  Its faces and section classes define the Review's
+;; appearance, including highlighting headings rather than section
+;; bodies.  `revu-mode' makes exactly two buffer-local exceptions:
+;; `magit-section-cache-visibility' and
+;; `magit-section-preserve-visibility'.  Both protect the invariant that
+;; a reviewer's folds survive a render; neither controls appearance.
+;; Put any other `magit-section' override in `revu-mode-hook'.  For
+;; example, this disables current-section highlighting only in Reviews:
+;;
+;;   (add-hook 'revu-mode-hook
+;;             (lambda ()
+;;               (setq-local magit-section-highlight-current nil)))
+;;
+;; revu reaches past `magit-section' into magit only through
+;; `revu-magit-mode' in `revu-magit.el'.  That mode is experimental
+;; (ADR-0013), off by default, and appends a "Review in revu" switch to
+;; the `magit-diff' transient.  It advises the setup functions that
+;; magit's diff commands use.  Since the switch runs magit's commands,
+;; magit's semantics stand: a commit selection in a log reviews
+;; `oldest..newest', leaving out the oldest selected commit's changes.
+;; Nothing in this file loads magit.
 
 ;;; Code:
 
