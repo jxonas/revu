@@ -280,6 +280,36 @@ answers -- three of five hunks read is neither reviewed nor untouched."
                              digests)
                   (length digests))))))))
 
+(defun revu-reviewed-totals (review files)
+  "Return how much of FILES REVIEW records as read, over the whole Source.
+It is (READ TOTAL STALE): the hunks matching a mark, the hunks there are,
+and the hunks that were read and have changed since.  Every hunk of every
+file takes part, whatever the buffer\='s view filters are leaving out --
+a filter is a lens on the Source and not a change of Source, so hiding
+what has been read cannot make the figure move.
+
+The dangling marks are memoised across the walk for the same reason a
+render memoises them: every hunk of a file asks the same question of the
+same marks.  A Review that has never been marked is answered by counting
+alone: there is nothing a digest could match, and hashing every line of
+the Source to find that out is work every render of an unmarked Review
+would pay for a figure already known."
+  (let ((hunks (apply #'+ (mapcar (lambda (file)
+                                    (length (revu-diff-file-hunks file)))
+                                  files))))
+    (if (zerop (length (revu-review-marks review)))
+        (list 0 hunks 0)
+      (let ((revu-reviewed--dangling-memo (make-hash-table :test #'equal))
+            (read 0)
+            (stale 0))
+        (dolist (file files)
+          (let ((path (revu-diff-file-path file)))
+            (dolist (value (revu-reviewed--hunk-values files path))
+              (cond ((revu-reviewed-p review files value) (setq read (1+ read)))
+                    ((revu-reviewed--stale-p review files value)
+                     (setq stale (1+ stale)))))))
+        (list read hunks stale)))))
+
 ;;;; The render predicates
 
 (defun revu-reviewed-hidden-p (review files)

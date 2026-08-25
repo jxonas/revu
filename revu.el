@@ -164,6 +164,79 @@ Signal a `user-error' outside a review buffer."
     (user-error "Not in a revu review buffer"))
   (revu-sidecar-review revu--sidecar))
 
+(defvar-local revu--revisions nil
+  "How each Revision of this buffer's Source reads, memoised by Revision.
+A Revision is immutable and so is what git says about it, so the header
+asks git once per buffer rather than once per render: every change to a
+Review is a full re-render (ADR-0008), which would otherwise make the
+header a git call per keystroke.")
+
+(defun revu--revision-description (revision)
+  "Return REVISION as the reviewer reads it: its abbreviated id and its subject.
+Fall back to REVISION as the record holds it when git knows no such
+commit -- one rebased away, or a blob id a pasted diff named -- because a
+Revision nobody can look up still names what the Review was taken from,
+and a header is not the place to raise it."
+  (unless revu--revisions
+    (setq revu--revisions (make-hash-table :test #'equal)))
+  (or (gethash revision revu--revisions)
+      (puthash revision
+               (or (revu-diff-describe-revision default-directory revision)
+                   revision)
+               revu--revisions)))
+
+(defun revu--source-description (source)
+  "Return the line naming SOURCE at the top of the buffer it is reviewed in.
+Each kind is named the way the command that took it was asked for it, so
+the line reads back as what the reviewer did: a worktree and an index are
+against a Revision, a range is between two, and a plain file is itself."
+  (pcase (revu-source-kind source)
+    ("worktree" (format "worktree vs %s"
+                        (revu--revision-description (revu-source-base source))))
+    ("staged" (format "staged vs %s"
+                      (revu--revision-description (revu-source-base source))))
+    ("range" (format "%s .. %s"
+                     (revu--revision-description (revu-source-base source))
+                     (revu--revision-description (revu-source-head source))))
+    ("file" (format "file %s" (revu-source-path source)))
+    (kind kind)))
+
+(defun revu--header-reviewed (review files source)
+  "Return what the header says about how much of FILES REVIEW records as read.
+A plain-file SOURCE has no hunks to be counted in, so it says the one
+word it is in instead (ADR-0011)."
+  (if (equal (revu-source-kind source) "file")
+      (or (revu-reviewed-state review files (revu-source-path source))
+          'unreviewed)
+    (revu-reviewed-totals review files)))
+
+(defun revu--header (review placements)
+  "Return the `revu-header' the current review buffer opens with.
+PLACEMENTS is where this render put the Annotations of REVIEW, so the
+orphaned figure counts what the reviewer is looking at and no file is
+read a second time."
+  (let* ((source (revu-review-source review))
+         (name (revu-review-name review))
+         (annotations (append (revu-review-annotations review) nil)))
+    (revu-header-create
+     :name name
+     :scratch (revu-review-scratch-name-p name source)
+     :source (revu--source-description source)
+     :narrowing (revu-source-paths source)
+     :kinds (mapcar (lambda (kind)
+                      (cons kind
+                            (seq-count
+                             (lambda (annotation)
+                               (equal (revu-annotation-kind annotation) kind))
+                             annotations)))
+                    revu-annotation-kinds)
+     :answered (seq-count #'revu-annotation-reply annotations)
+     :orphaned (seq-count (lambda (placement)
+                            (eq (revu-render-placement-state placement)
+                                'orphaned))
+                          placements)
+     :reviewed (revu--header-reviewed review revu--files source))))
+
 (defun revu-render ()
   "Render the current review buffer from the state it carries.
 Where each Annotation belongs, and the state of its Anchor, is derived
@@ -176,7 +249,8 @@ something to say about them does not read every file a second time."
                       (revu-reviewed-hidden-p review revu--files)
                       placements
                       (revu-reviewed-keep-p review revu--files)
-                      (revu-reviewed-state-p review revu--files))
+                      (revu-reviewed-state-p review revu--files)
+                      (revu--header review placements))
     placements))
 
 (defun revu--file-content (file)
@@ -264,7 +338,12 @@ and the file is left as the agent wrote it, for the reviewer to look at."
          (files (revu--source-files (revu-review-source review)
                                     default-directory)))
     (revu-sidecar-reload revu--sidecar)
-    (setq revu--files files)
+    (setq revu--files files
+          ;; A Revision git knew nothing about when the header was first
+          ;; drawn may have been fetched since, and a reload is the
+          ;; gesture that says so: what a memo of a failed lookup would
+          ;; otherwise hold until the buffer was built again.
+          revu--revisions nil)
     (revu-render)
     (message "Reloaded %s" (revu-sidecar-file revu--sidecar))))
 
@@ -324,6 +403,10 @@ from under the reviewer, who reloads and looks first."
     (setf (revu-sidecar-file revu--sidecar) file)
     (revu-sidecar-write revu--sidecar (revu-review-rename review name))
     (rename-buffer (revu-buffer-name name))
+    ;; The name is on screen as well as on the buffer: the header says
+    ;; which Review this is and whether it is still its Source's scratch
+    ;; bucket, and a rename is what changes both.
+    (revu-render)
     (message "Renamed %s to %s" old name)))
 
 (defun revu--reviews (root)

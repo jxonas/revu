@@ -386,14 +386,39 @@ any line of it."
                       (revu-target-review)))
 
 ;;;###autoload
+(defun revu-annotate--annotated-section ()
+  "Return the section at point that an Annotation could be made on.
+An Annotation section is passed over rather than answered with: an
+Annotation is not a Target, so what point is on when it is standing on
+one is whatever the Annotation is rendered under.  That is the header for
+an Annotation on the Review, and the file heading for one on a whole
+file."
+  (let ((section (magit-current-section)))
+    (while (object-of-class-p section 'revu-annotation-section)
+      (setq section (oref section parent)))
+    section))
+
 (defun revu-annotate (&optional kind body)
   "Annotate what point is on, with KIND and BODY.
-An active region is a range and a single line is a line; the file and the
-Review are annotated by `revu-annotate-file' and `revu-annotate-review'."
+An active region is a range and a Source line is a line.  Off the Source,
+what point is in answers: the header at the top of the buffer is the
+Review as a whole, and a file heading is the file.  It is the section
+point is in and not one above it, so `a\=' never widens an Annotation
+past what the reviewer is looking at; `f\=' and `R\=' are the explicit
+routes to the file and the Review from anywhere.
+
+Point on nothing annotatable falls through to the line, which says so."
   (interactive)
-  (if (use-region-p)
-      (revu-annotate-range (region-beginning) (region-end) kind body)
-    (revu-annotate-line kind body)))
+  (let ((section (revu-annotate--annotated-section)))
+    (cond ((use-region-p)
+           (revu-annotate-range (region-beginning) (region-end) kind body))
+          ((get-text-property (line-beginning-position) 'revu-target)
+           (revu-annotate-line kind body))
+          ((object-of-class-p section 'revu-header-section)
+           (revu-annotate-review kind body))
+          ((object-of-class-p section 'revu-file-section)
+           (revu-annotate-file kind body))
+          (t (revu-annotate-line kind body)))))
 
 ;;;###autoload
 (defun revu-annotate-edit (&optional body)

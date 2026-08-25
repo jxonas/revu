@@ -43,6 +43,16 @@
 ;; text: the header is derived from content, so keying a fold on it loses
 ;; the fold on exactly the edit reload exists to show (ADR-0012).
 ;;
+;; The buffer opens with a header naming the Review, the Source under it,
+;; the Narrowing that limits it, and how much of it has been annotated and
+;; read.  It is a section of its own and the first child of the root, not
+;; the root's own heading: the root holds the whole buffer, and folding it
+;; would take the Source away along with the header that names it.  Like
+;; every other line here the header is drawn and not derived -- the caller
+;; hands over a `revu-header' -- and its figures are over the whole Source,
+;; because the view filters are a lens on a Source and never a change of
+;; one.
+;;
 ;; A heading carries the Reviewed state of what it opens, as a glyph the
 ;; render is handed rather than derives: `revu-reviewed.el' decides, this
 ;; file draws.  The glyph is heading text and not a fold, so it survives
@@ -73,6 +83,14 @@
 (require 'seq)
 (require 'revu-diff)
 (require 'revu-record)
+
+(defface revu-header-label
+  '((t :inherit magit-section-heading))
+  "Face of the labels down the left of the header at the top of a Review.
+The values beside them are left in the default face: the label is what
+the eye runs down to find a line, and the value is what it stops to
+read."
+  :group 'revu)
 
 (defface revu-line-number
   '((t :inherit shadow))
@@ -406,6 +424,132 @@ filter keeps it findable."
               (revu-render--placements-at placements (nth 1 line) (nth 0 line)))
             (revu-diff-hunk-lines hunk)))
 
+;;;; The header at the top of the buffer
+
+(defclass revu-header-section (revu-section) ()
+  "The section holding the header at the top of a Review.
+It is the first child of the root and not the root's own heading: the
+root holds the whole buffer, so folding it would fold the Source away
+along with the header that names it.")
+
+(cl-defstruct (revu-header
+               (:constructor revu-header-create)
+               (:copier nil))
+  "What the header at the top of a review buffer says.
+NAME is the Review's name and SCRATCH is non-nil when that name is its
+Source's scratch bucket.  SOURCE is the one line naming what is under
+review and NARROWING the pathspecs it is limited to, or nil for a Source
+that spans every path.
+
+KINDS is how many Annotations of each Kind the Review holds, as an alist
+in Kind order; ANSWERED how many of them carry a Reply and ORPHANED how
+many Anchors were not found again.
+
+REVIEWED is (READ TOTAL STALE) over the hunks of the whole Source, and
+for a plain file -- which has no hunks to divide it -- the one word its
+Reviewed state is: `reviewed', `stale' or `unreviewed'.
+
+Everything here is decided before the render is called: this file draws a
+header and derives none of it, exactly as it draws a Reviewed glyph
+`revu-reviewed.el' decided."
+  name scratch source narrowing kinds answered orphaned reviewed)
+
+(defconst revu-render--header-label-width 10
+  "Columns a header label is padded to, colon included.
+It is the width of the longest label the header always draws, so the
+values line up under each other; the one longer label overruns it by
+design rather than pushing every other line further right.")
+
+(defun revu-render--header-line (label value)
+  "Return the header line naming LABEL and carrying VALUE."
+  (concat (propertize (string-pad (concat label ":")
+                                  revu-render--header-label-width)
+                      'font-lock-face 'revu-header-label)
+          " " value "\n"))
+
+(defun revu-render--plural (count word)
+  "Return WORD in the number COUNT is in: as it stands for one, an s for the rest.
+The word is returned rather than the count with it, because the two
+figures the header draws count in different shapes -- a Kind is `3
+questions\=' and the hunks are `12/20 hunks\=' -- and only the word is
+common to them."
+  (concat word (if (= count 1) "" "s")))
+
+(defun revu-render--header-review (header)
+  "Return the value the Review line of HEADER carries."
+  (concat (revu-header-name header)
+          (when (revu-header-scratch header)
+            (propertize " (scratch)" 'font-lock-face 'shadow))))
+
+(defun revu-render--header-annotations (header)
+  "Return the value the Annotations line of HEADER carries.
+The total is always there, so the line keeps its shape while the Review
+fills up; every part behind it is left off while there is none of it,
+because a Review with nothing answered should not have to say so."
+  (let* ((kinds (revu-header-kinds header))
+         (total (apply #'+ (mapcar #'cdr kinds)))
+         (breakdown (mapconcat (lambda (kind)
+                                 (format "%d %s" (cdr kind)
+                                         (revu-render--plural (cdr kind)
+                                                              (car kind))))
+                               (seq-remove (lambda (kind) (zerop (cdr kind)))
+                                           kinds)
+                               " \N{MIDDLE DOT} "))
+         (answered (revu-header-answered header))
+         (orphaned (revu-header-orphaned header)))
+    (concat (number-to-string total)
+            (unless (string-empty-p breakdown) (format " (%s)" breakdown))
+            (when (> answered 0) (format ", %d answered" answered))
+            (when (> orphaned 0)
+              (concat ", " (propertize (format "%d orphaned" orphaned)
+                                       'font-lock-face 'warning))))))
+
+(defun revu-render--header-reviewed (header)
+  "Return the value the Reviewed line of HEADER carries.
+The figure is over the whole Source and not over what is on screen: the
+view filters are a lens on a Source and never a change of Source, so how
+much is left to read cannot move when the reviewer hides what they have
+read.  A plain file says the one word it is in instead, for want of
+hunks to count."
+  (let ((reviewed (revu-header-reviewed header)))
+    (if (consp reviewed)
+        (pcase-let ((`(,read ,total ,stale) reviewed))
+          (concat (format "%d/%d %s" read total
+                          (revu-render--plural total "hunk"))
+                  (when (> stale 0)
+                    (concat ", " (propertize (format "%d stale" stale)
+                                             'font-lock-face 'warning)))))
+      (pcase reviewed
+        ('stale (propertize "stale" 'font-lock-face 'warning))
+        (word (symbol-name word))))))
+
+(defun revu-render-header (header placements)
+  "Insert HEADER as the section that opens the buffer, with PLACEMENTS under it.
+PLACEMENTS are the Annotations on the Review as a whole: what the
+reviewer has to say about the change rather than about any line of it,
+which is what the header is about too.
+
+The Review line is the heading, so folding the header leaves the name of
+what is being reviewed on screen and takes the rest away.  The fold
+outlives the render because the section's value never changes with the
+Review's state, which is what magit-section keys its visibility cache
+on."
+  (magit-insert-section (revu-header-section 'revu-header)
+    (magit-insert-heading
+      (string-trim-right
+       (revu-render--header-line "Review" (revu-render--header-review header))))
+    (insert (revu-render--header-line "Source" (revu-header-source header)))
+    (when (revu-header-narrowing header)
+      (insert (revu-render--header-line
+               "Narrowing" (string-join (revu-header-narrowing header) " "))))
+    (insert (revu-render--header-line
+             "Annotations" (revu-render--header-annotations header)))
+    (insert (revu-render--header-line
+             "Reviewed" (revu-render--header-reviewed header)))
+    (dolist (placement placements)
+      (revu-render-annotation placement)))
+  (insert "\n"))
+
 (defun revu-render-hunk-value (path hunk)
   "Return the value a hunk section for HUNK of PATH is rendered with.
 A hunk is named to a render by its path and the `@@\' header it was
@@ -414,7 +558,8 @@ command finds again what it acted on once the buffer has been built anew.
 Built here, in one place, so nothing can name a hunk two ways."
   (cons path (revu-diff-hunk-header hunk)))
 
-(defun revu-render-diff (files &optional hidden-p placements keep-p state-p)
+(defun revu-render-diff (files &optional hidden-p placements keep-p state-p
+                               header)
   "Render FILES, a list of `revu-diff-file', into the current buffer.
 HIDDEN-P is called with the value of each file and hunk section and
 decides whether that section is rendered collapsed; a Reviewed mark
@@ -426,9 +571,11 @@ and decides whether that section is rendered at all; the buffer's view
 filters shape the render through it, and a nil KEEP-P renders the whole
 Source.  STATE-P is called with the value of each file and hunk section
 and returns the Reviewed state to badge its heading with; the render
-knows marks only through it.  Point is left on the same line of the
-Source it was on, at the same column and the same height, or as near to
-that as this render can put it."
+knows marks only through it.  HEADER is the `revu-header' the buffer
+opens with, decided by the caller like everything else here; nil renders
+no header at all.  Point is left on the same line of the Source it was
+on, at the same column and the same height, or as near to that as this
+render can put it."
   (let* ((inhibit-read-only t)
          ;; A section's `start', `content' and `end' are plain positions
          ;; here, not the markers magit-section makes by default.  That is
@@ -447,14 +594,26 @@ that as this render can put it."
          (magit-section-inhibit-markers t)
          (previous (revu-render--point-now))
          (paths (mapcar #'revu-diff-file-path files))
-         ;; An Annotation on the Review, and one on a file the Source does
-         ;; not carry, belong to no file section: they open the buffer.
+         ;; An Annotation on the Review renders under the header, which is
+         ;; what the header is about too.  One on a file the Source does
+         ;; not carry belongs to no section at all and stays loose between
+         ;; the header and the first file, where the reviewer can still
+         ;; see it.  With no header there is nowhere to put the first kind
+         ;; but loose.
+         (on-the-review (and header
+                             (seq-filter (lambda (placement)
+                                           (null (revu-render-placement-path
+                                                  placement)))
+                                         placements)))
          (loose (seq-remove (lambda (placement)
-                              (member (revu-render-placement-path placement)
-                                      paths))
+                              (or (memq placement on-the-review)
+                                  (member (revu-render-placement-path placement)
+                                          paths)))
                             placements)))
     (erase-buffer)
     (magit-insert-section (magit-section 'revu-review)
+      (when header
+        (revu-render-header header on-the-review))
       (dolist (placement loose)
         (revu-render-annotation placement))
       (dolist (file files)

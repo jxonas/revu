@@ -29,6 +29,12 @@
 ;; toggle a Reviewed mark, `E' to Export, `g' to reload, `RET' to visit
 ;; what point is on, and `?' for the palette.
 ;;
+;; `a' annotates whatever point is on and nothing wider: a selection is a
+;; range, a Source line is a line, a file heading is that file, and the
+;; header at the top of the buffer is the Review as a whole.  `f' and `R'
+;; are still the explicit routes to the file and the Review from
+;; anywhere.
+;;
 ;; Evil users get bindings of revu's own, in a block that runs only when
 ;; evil is loaded.  revu depends on evil in no way and sets no initial
 ;; state: what the block does is keep the mnemonics where the letter is

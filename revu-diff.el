@@ -138,6 +138,24 @@ object id at.  Return nil when git will not abbreviate it."
     (when (eq (car result) 0)
       (string-trim (cdr result)))))
 
+(defun revu-diff-describe-revision (root revision)
+  "Return REVISION as its abbreviated id and subject, or nil when ROOT has none.
+This is how a Revision is named to the reviewer -- \"abc1234 Add the
+header section\" -- rather than as the forty characters the record holds.
+Nil when git does not know the object as a commit: a Revision rebased
+away is gone, and a pasted diff\='s `index\=' header names blobs, which are
+objects and not commits.  The caller falls back to the id it has.
+
+The abbreviation is git\='s own, so it is the length a log shows the object
+at, and one call answers for both halves."
+  (let ((result (revu-diff--call
+                 root (list "log" "-1" "--no-decorate" "--format=%h %s"
+                            (concat revision "^{commit}")))))
+    (when (eq (car result) 0)
+      (let ((described (string-trim (cdr result))))
+        (unless (string-empty-p described)
+          described)))))
+
 (defun revu-diff-object-exists-p (root object)
   "Return non-nil when OBJECT names an object present in ROOT.
 A blob is an object but not a Revision, so this is the question a diff's
