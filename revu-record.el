@@ -211,10 +211,10 @@ would double a separator and read as one it is not."
   (string-trim (revu--slug text) "-+" "-+"))
 
 (defun revu--narrowing-slug (source)
-  "Return the name suffix SOURCE\='s Narrowing adds, or the empty string.
-Each pathspec is slugged and hyphen-joined onto the Revisions\=' name,
-`main..feature--src-foo--docs\=', in the order the pathspecs were given
-(ADR-0005\='s amendment names them in that order).  So the same Narrowing
+  "Return the suffix SOURCE\\='s Narrowing puts on a derived name.
+Each pathspec is slugged and hyphen-joined onto the Revisions\\=' name,
+`main..feature--src-foo--docs\\=', in the order the pathspecs were given
+\(ADR-0005\\='s amendment names them in that order).  So the same Narrowing
 resumes the same Review, and the full one over the same Revisions is left
 alone."
   (mapconcat (lambda (path) (concat "--" (revu--name-slug path)))
@@ -223,12 +223,12 @@ alone."
 
 (defun revu--worktree-name (source)
   "Return the name the worktree SOURCE derives, without its Narrowing.
-The worktree against HEAD is called `worktree\=' whatever commit HEAD is
+The worktree against HEAD is called `worktree\\=' whatever commit HEAD is
 on, so the Review of what is about to be committed does not fork every
 time a commit lands.  The worktree against any other Revision is a
 Review of its own and carries that Revision, as the reviewer named it,
-so it never resumes the one against HEAD.  The separator is `-vs-\=',
-which is not `--\=': that one is already the Narrowing\='s."
+so it never resumes the one against HEAD.  The separator is `-vs-\\=',
+which is not `--\\=': that one is already the Narrowing\\='s."
   (let ((base (revu-source-base source)))
     ;; The base is read as it was written and not as what it resolves
     ;; to, because a name is what was written: nothing written is HEAD,
@@ -255,7 +255,7 @@ one."
                                                       kind))))))
 
 (defun revu-review-scratch-name-p (name source)
-  "Return non-nil when NAME is the name of SOURCE\='s scratch bucket.
+  "Return non-nil when NAME is the name of SOURCE\\='s scratch bucket.
 Usually that is the name SOURCE derives.  A worktree Source is asked
 whether NAME is the name it derives against HEAD, because that is the
 one name a worktree Review can be recognised by after the fact: a Review

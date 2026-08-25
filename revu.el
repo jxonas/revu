@@ -119,6 +119,7 @@ Signal a `user-error' when PATH belongs to no project."
 
 (defun revu-export-file-name (name &optional path)
   "Return the file the Export of the Review called NAME is written to.
+PATH names the project to look in, and defaults to `default-directory'.
 It lives under `revu-exports-directory-name', beside the `reviews\\='
 directory rather than beside the Sidecar itself, so that a Review name
 can never collide with another kind of file and `revu-open' has one
@@ -172,7 +173,7 @@ Review is a full re-render (ADR-0008), which would otherwise make the
 header a git call per keystroke.")
 
 (defun revu--revision-description (revision)
-  "Return REVISION as the reviewer reads it: its abbreviated id and its subject.
+  "Return REVISION as the reviewer sees it: its abbreviated id and its subject.
 Fall back to REVISION as the record holds it when git knows no such
 commit -- one rebased away, or a blob id a pasted diff named -- because a
 Revision nobody can look up still names what the Review was taken from,
@@ -202,7 +203,7 @@ against a Revision, a range is between two, and a plain file is itself."
     (kind kind)))
 
 (defun revu--header-reviewed (review files source)
-  "Return what the header says about how much of FILES REVIEW records as read.
+  "Return the Reviewed figure for FILES, as the header of REVIEW draws it.
 A plain-file SOURCE has no hunks to be counted in, so it says the one
 word it is in instead (ADR-0011)."
   (if (equal (revu-source-kind source) "file")
@@ -304,7 +305,7 @@ anew.  A Review whose Source was a pasted diff records the Revisions it
 spanned, so it is read back from the repository like any other range.
 A Source carrying a Narrowing is read again through it, so a narrowed
 Review stays narrowed and its Annotations are re-anchored against the
-files the reviewer asked for (ADR-0005\='s amendment)."
+files the reviewer asked for (ADR-0005\\='s amendment)."
   (let ((paths (revu-source-paths source)))
     (pcase (revu-source-kind source)
       ("worktree" (revu-diff-parse
@@ -430,7 +431,7 @@ this revu cannot read is left out: it cannot be opened either, and
   "Return non-nil when the Review in ENTRY is the scratch bucket of its Source.
 ENTRY is a cons of a name and a Review, and the Review is scratch while
 it is still called what its Source derives.  Which names those are is
-`revu-review-scratch-name-p\='s to say: a Review whose name was derived
+`revu-review-scratch-name-p\\='s to say: a Review whose name was derived
 from Revisions as the reviewer typed them reads as named either way."
   (ignore-errors
     (revu-review-scratch-name-p (car entry) (revu-review-source (cdr entry)))))
@@ -504,7 +505,7 @@ That is nothing at all, so that the Review opens on the name derived
 from its Source without a prompt, unless a prefix argument asks for a
 name, which is `ask\\='.  The prefix argument is read here rather than in
 the command, so that a caller reaching an entry command from somewhere
-else -- the magit Bridge, a test, a reviewer\\='s own lisp -- never
+else -- the magit Bridge, a test, a reviewer\\='s own Lisp -- never
 inherits a prefix argument meant for the command it came from
 \(ADR-0005\\='s amendment)."
   (and current-prefix-arg 'ask))
@@ -584,12 +585,12 @@ Sidecar from being written for a Review of nothing."
   "Review everything the worktree carries that Revision BASE does not.
 BASE defaults to HEAD, which is the everyday reading: staged and
 unstaged changes alike, because that is what the reviewer is about to
-commit.  Any other Revision widens the Source to what `git diff <base>\='
+commit.  Any other Revision widens the Source to what `git diff <base>\\='
 shows, which is what a reviewer asking for everything since a tag means.
 
 NAME names the Review, and is the name derived from the Source when it
 is nothing; interactively a prefix argument asks for one.  The derived
-name is `worktree\=' for a base naming the commit HEAD names, and carries
+name is `worktree\\=' for a base naming the commit HEAD names, and carries
 BASE as it was written otherwise, so the Review of the worktree does not
 fork as HEAD moves and one taken against anything else never resumes it.
 The Review itself records the commit BASE resolved to, because that is

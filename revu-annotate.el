@@ -385,7 +385,6 @@ any line of it."
                       (or body (revu-annotate--read-body))
                       (revu-target-review)))
 
-;;;###autoload
 (defun revu-annotate--annotated-section ()
   "Return the section at point that an Annotation could be made on.
 An Annotation section is passed over rather than answered with: an
@@ -398,13 +397,14 @@ file."
       (setq section (oref section parent)))
     section))
 
+;;;###autoload
 (defun revu-annotate (&optional kind body)
   "Annotate what point is on, with KIND and BODY.
 An active region is a range and a Source line is a line.  Off the Source,
 what point is in answers: the header at the top of the buffer is the
 Review as a whole, and a file heading is the file.  It is the section
-point is in and not one above it, so `a\=' never widens an Annotation
-past what the reviewer is looking at; `f\=' and `R\=' are the explicit
+point is in and not one above it, so `a\\=' never widens an Annotation
+past what the reviewer is looking at; `f\\=' and `R\\=' are the explicit
 routes to the file and the Review from anywhere.
 
 Point on nothing annotatable falls through to the line, which says so."

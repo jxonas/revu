@@ -143,10 +143,10 @@ object id at.  Return nil when git will not abbreviate it."
 This is how a Revision is named to the reviewer -- \"abc1234 Add the
 header section\" -- rather than as the forty characters the record holds.
 Nil when git does not know the object as a commit: a Revision rebased
-away is gone, and a pasted diff\='s `index\=' header names blobs, which are
+away is gone, and a pasted diff\\='s `index\\=' header names blobs, which are
 objects and not commits.  The caller falls back to the id it has.
 
-The abbreviation is git\='s own, so it is the length a log shows the object
+The abbreviation is git\\='s own, so it is the length a log shows the object
 at, and one call answers for both halves."
   (let ((result (revu-diff--call
                  root (list "log" "-1" "--no-decorate" "--format=%h %s"
@@ -163,8 +163,8 @@ A blob is an object but not a Revision, so this is the question a diff's
   (eq (car (revu-diff--call root (list "cat-file" "-e" object))) 0))
 
 (defun revu-diff--pathspecs (paths)
-  "Return the `git diff\=' arguments limiting a diff to PATHS, or nil.
-The pathspecs come last, behind the `--\=' that keeps git from reading one
+  "Return the `git diff\\=' arguments limiting a diff to PATHS, or nil.
+The pathspecs come last, behind the `--\\=' that keeps git from reading one
 of them as a Revision."
   (when (> (length paths) 0)
     (cons "--" (append paths nil))))
