@@ -3,8 +3,10 @@
 (eldev-use-package-archive 'gnu-elpa)
 (eldev-use-package-archive 'nongnu-elpa)
 
-;; Test files require `revu-fixture', which lives beside them.
-(eldev-add-loading-roots 'test "test")
+;; Test files require `revu-fixture', which lives beside them.  The `emacs'
+; command gets the same root, so that a scratch script run through
+; `eldev emacs' can build the fixture repository and open a Review in it.
+(eldev-add-loading-roots '(test emacs) "test")
 
 ;; The magit Bridge (ADR-0013) is compile-checked only: magit is here so
 ;; that `revu-magit.el' byte-compiles and lints against the real names,

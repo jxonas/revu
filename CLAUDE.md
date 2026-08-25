@@ -13,3 +13,11 @@ The five canonical triage roles map onto knot's native fields: `needs-triage` an
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Checks
+
+`eldev test -B`, `eldev lint` and `eldev compile` must all be clean. How to run them, and how to open a Review in a scratch Emacs, is in `docs/agents/checks.md`.
+
+## Coding standards
+
+The rules the reviewer enforces on a diff — lint as a gate, the docstring apostrophe escape, a Sidecar write that renders. See `docs/agents/standards.md`.
