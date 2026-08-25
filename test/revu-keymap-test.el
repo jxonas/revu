@@ -153,8 +153,11 @@ never in place of them."
 (ert-deftest revu-keymap-leaves-a-vanilla-emacs-alone ()
   "With no evil loaded the guarded block never runs and binds nothing.
 `x' and `gr' mean in a review buffer exactly what they meant before, and
-deleting an Annotation is on `k' where the canonical map put it."
-  (should-not (fboundp 'evil-define-key*))
+deleting an Annotation is on `k' where the canonical map put it.
+
+evil is a test dependency (Eldev), and this is still the vanilla map:
+`revu-mode-map' is built when the package loads, before any test file has
+required evil, so what it carries is what an Emacs without evil gets."
   (revu-fixture-in-repo root
     (with-current-buffer (revu-diff-worktree nil "worktree")
       (should (eq (key-binding (kbd "x")) 'undefined))

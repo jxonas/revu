@@ -558,6 +558,36 @@ command finds again what it acted on once the buffer has been built anew.
 Built here, in one place, so nothing can name a hunk two ways."
   (cons path (revu-diff-hunk-header hunk)))
 
+(declare-function evil-visual-state-p "ext:evil-states" ())
+(declare-function evil-exit-visual-state "ext:evil-states" (&optional buffer message))
+
+(defun revu-render--drop-selection ()
+  "Drop any selection over the buffer this render is about to destroy.
+A render erases the buffer and builds it anew, so the text a selection
+was over is gone and the selection says nothing about what replaces it.
+Dropping it here rather than in each command that renders states that
+once: a command reads the selection before it renders, and nothing needs
+it afterwards.
+
+evil is why this cannot be left alone.  `erase-buffer\' does not detach a
+marker -- the same fact `revu-render-diff\' keeps a render\'s cost flat
+with -- so the markers evil holds a visual selection in all collapse to
+the top of the buffer, and `evil-visual-post-command\', which runs after
+the command is over, puts point back at one of them.  A reviewer who
+marked a run reviewed would land on the header rather than on the section
+after the run.  Leaving visual state here, while those markers still say
+what they mean, is what lets the command keep the last word on where the
+reviewer goes next.
+
+It runs before the render reads where the reviewer is, so what comes back
+is their own point and not the end evil expanded the region to.  evil is
+called only when it is there: revu depends on evil in no way (ADR-0010)."
+  (deactivate-mark)
+  (when (and (fboundp 'evil-visual-state-p)
+             (fboundp 'evil-exit-visual-state)
+             (evil-visual-state-p))
+    (evil-exit-visual-state)))
+
 (defun revu-render-diff (files &optional hidden-p placements keep-p state-p
                                header)
   "Render FILES, a list of `revu-diff-file', into the current buffer.
@@ -576,6 +606,7 @@ opens with, decided by the caller like everything else here; nil renders
 no header at all.  Point is left on the same line of the Source it was
 on, at the same column and the same height, or as near to that as this
 render can put it."
+  (revu-render--drop-selection)
   (let* ((inhibit-read-only t)
          ;; A section's `start', `content' and `end' are plain positions
          ;; here, not the markers magit-section makes by default.  That is

@@ -32,3 +32,37 @@ inferred from `E`: the two Export sinks keep `E` and `W` in both maps.
 That takes `W` off force-write, which moves to `!` in the palette. Which
 letter it sits on was never the decision — the decision was that force-write
 lives in the palette and nowhere else, and it still does.
+
+## Amendment: a render drops the selection over the buffer it destroys
+
+Binding revu's commands for evil is not the whole of living with evil. A
+visual selection is a region *plus* the two hooks evil hangs on the command
+loop: `evil-visual-pre-command` widens the region to the selection, and
+`evil-visual-post-command` narrows it back once the command is over — and,
+narrowing it back, it puts point where the markers it kept the selection in
+say the reviewer was.
+
+Those markers do not survive a render. `revu-render-diff` erases the buffer
+and builds it anew, `erase-buffer` does not detach a marker (the same fact
+the render binds `magit-section-inhibit-markers` over, for cost), and so
+every marker evil left behind collapses to position one. A reviewer who
+marked a run of sections reviewed from a `V` selection was put back on the
+header at the top of the buffer, after the command's own advance had
+already left them on the section after the run. `revu-annotate` renders
+the same way and had the same fault.
+
+So: **a render drops the selection before it erases the buffer**
+(`revu-render--drop-selection`). The rule is true without evil in it — the
+text a selection was over is gone, so the selection says nothing about what
+replaces it — and it is stated once, in the render, rather than in each
+command that renders. `deactivate-mark` covers vanilla Emacs;
+`evil-exit-visual-state` is called behind an `fboundp` guard, which keeps
+the posture above: revu depends on evil in no way. It runs before the
+render reads where the reviewer is, so the position that comes back is
+their own and not the end evil expanded the region to.
+
+evil becomes a **test dependency** for this, alongside magit's build-only
+one: the fault is the interaction itself, and no test with evil absent can
+reach it. It is required by `revu-evil-test.el` and by nothing else, so the
+package still loads with evil absent and `revu-mode-map` is still built the
+way a vanilla Emacs builds it.

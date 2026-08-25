@@ -14,3 +14,10 @@
 ;; is pure and runs with magit absent.
 (eldev-add-extra-dependencies 'build '(:package magit :version "4.4"))
 (eldev-add-extra-dependencies 'lint '(:package magit :version "4.4"))
+
+;; evil is a test dependency and not a runtime one (ADR-0010): revu binds
+;; its commands for evil when evil is there and requires it never.  The
+;; tests need it because the fault it guards against -- a visual selection
+;; whose markers a render collapses -- is the interaction itself, and no
+;; test with evil absent can reach it.
+(eldev-add-extra-dependencies 'test '(:package evil :version "1.15"))
