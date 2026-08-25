@@ -227,6 +227,22 @@ one, and computed afresh otherwise."
                    revu-reviewed--dangling-memo)
         memo))))
 
+(defun revu-reviewed--hunk-stale-p (review dangling hunk)
+  "Return non-nil when HUNK was read and has changed since, against REVIEW.
+DANGLING are the marks on HUNK's path that match nothing rendered, which
+is the caller's to find once a path rather than once a hunk.  The hunk is
+stale while one of them was taken over base lines this hunk still covers
+and the hunk's own content matches no mark: that is what tells a hunk the
+reviewer read and an agent then changed from a hunk they never read at
+all.  A mark carrying no span attributes to nothing -- it is better to
+call read work new than to call new work read."
+  (and dangling
+       (not (revu-reviewed--marked-p review (revu-reviewed-hunk-digest hunk)))
+       (seq-find (lambda (mark)
+                   (revu-reviewed--spans-overlap-p
+                    (revu-mark-span mark) (revu-reviewed-hunk-span hunk)))
+                 dangling)))
+
 (defun revu-reviewed--stale-p (review files value)
   "Return non-nil when the section of FILES valued VALUE was read and changed.
 A region is stale when a mark of REVIEW was taken over it and no longer
@@ -244,14 +260,9 @@ new work read."
       (let ((file (revu-reviewed--file files path)))
         (if (and file (revu-diff-file-plain file))
             t
-          (and (seq-find
-                (lambda (assertion)
-                  (and (not (revu-reviewed--marked-p review (car assertion)))
-                       (seq-find (lambda (mark)
-                                   (revu-reviewed--spans-overlap-p
-                                    (revu-mark-span mark) (cdr assertion)))
-                                 dangling)))
-                (revu-reviewed--assertions files value))
+          (and (seq-find (lambda (hunk)
+                           (revu-reviewed--hunk-stale-p review dangling hunk))
+                         (revu-reviewed--hunks files value))
                t))))))
 
 (defun revu-reviewed-state (review files value)
@@ -284,16 +295,19 @@ answers -- three of five hunks read is neither reviewed nor untouched."
   "Return how much of FILES REVIEW records as read, over the whole Source.
 It is (READ TOTAL STALE): the hunks matching a mark, the hunks there are,
 and the hunks that were read and have changed since.  Every hunk of every
-file takes part, whatever the buffer\='s view filters are leaving out --
-a filter is a lens on the Source and not a change of Source, so hiding
-what has been read cannot make the figure move.
+file takes part, whatever the buffer\\='s view filters are leaving out --
+a filter is a lens on a Source and not a change of Source, so hiding what
+has been read cannot make the figure move.  A plain-file Source has no
+hunks to be counted in and is asked `revu-reviewed-state\\=' instead.
 
-The dangling marks are memoised across the walk for the same reason a
-render memoises them: every hunk of a file asks the same question of the
-same marks.  A Review that has never been marked is answered by counting
-alone: there is nothing a digest could match, and hashing every line of
-the Source to find that out is work every render of an unmarked Review
-would pay for a figure already known."
+The walk is over the files themselves and never over section values,
+because a value has to be looked up again in every file there is: asking
+the question 3000 times of a 500-file Source that way costs the product
+of the two, and the reviewer pays it on every render.  The dangling marks
+are found once a file for the same reason, and a Review nobody has marked
+is answered by counting alone -- there is nothing a digest could match,
+and hashing every line of the Source to find that out is work no unmarked
+Review should pay for a figure already known."
   (let ((hunks (apply #'+ (mapcar (lambda (file)
                                     (length (revu-diff-file-hunks file)))
                                   files))))
@@ -303,10 +317,13 @@ would pay for a figure already known."
             (read 0)
             (stale 0))
         (dolist (file files)
-          (let ((path (revu-diff-file-path file)))
-            (dolist (value (revu-reviewed--hunk-values files path))
-              (cond ((revu-reviewed-p review files value) (setq read (1+ read)))
-                    ((revu-reviewed--stale-p review files value)
+          (let* ((path (revu-diff-file-path file))
+                 (dangling (revu-reviewed--dangling review files path)))
+            (dolist (hunk (revu-diff-file-hunks file))
+              (cond ((revu-reviewed--marked-p
+                      review (revu-reviewed-hunk-digest hunk))
+                     (setq read (1+ read)))
+                    ((revu-reviewed--hunk-stale-p review dangling hunk)
                      (setq stale (1+ stale)))))))
         (list read hunks stale)))))
 

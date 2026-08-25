@@ -78,14 +78,50 @@ them."
                     :hunks (cl-loop for hunk below revu-render-cost-test-hunks
                                     collect (revu-render-cost-test--hunk hunk)))))
 
-(defun revu-render-cost-test--render-seconds (files)
-  "Render FILES into the current buffer and return the seconds it took.
-Nothing is collected between renders: what is being measured is the cost
-a render carries from the renders before it, and forcing a collection
-would drop part of it."
+(defconst revu-render-cost-test-header-share 0.05
+  "The most of a render\='s drawing the header is allowed to cost beside it.
+The header is a summary of state the render already walks -- how many
+hunks are read, how many Annotations there are -- so it has no business
+costing like a second render.  It twice did: asking the Reviewed question
+through section values looked each value up again in every file there is,
+which on the Source below is a fifth of a second per render once one hunk
+is marked, and a third of what drawing the whole buffer costs.  With the
+walk over the files themselves it is a four-hundredth of that.  The
+margin sits between the two populations, clear of both.
+
+Measured against the render without the header rather than against the
+whole, because the whole contains the header: a share of it is bounded
+above by one however far the header runs away.")
+
+(defun revu-render-cost-test--seconds (thunk)
+  "Call THUNK and return the seconds it took.
+Nothing is collected between calls: what is being measured is the cost a
+render carries from the renders before it, and forcing a collection would
+drop part of it."
   (let ((started (current-time)))
-    (revu-render-diff files)
+    (funcall thunk)
     (float-time (time-since started))))
+
+(defmacro revu-render-cost-test-in-review (root files &rest body)
+  "Run BODY in a review buffer over FILES, in the fixture repository at ROOT.
+The buffer is the one `revu-render' renders: the Review, the Sidecar and
+the Source are all where that command reads them from, so what a test
+times here is the render the reviewer pays for and not a stripped-down
+one.  The Source is synthetic and the repository is real, because the
+header names a Revision and asks git what it says."
+  (declare (indent 2) (debug (symbolp form body)))
+  `(revu-fixture-in-repo ,root
+     (with-temp-buffer
+       (revu-mode)
+       (setq default-directory ,root
+             revu--files ,files
+             revu--sidecar
+             (revu-sidecar-open
+              (revu-sidecar-file-name "cost" ,root)
+              (revu-review-create
+               "cost"
+               (revu-source-worktree (revu-diff-head-revision ,root)))))
+       ,@body)))
 
 (ert-deftest revu-render-cost-does-not-grow-with-the-renders-before-it ()
   "The twelfth render of a Source costs what the first one did.
@@ -95,13 +131,44 @@ diff."
   (let ((files (revu-render-cost-test--files))
         (seconds nil))
     (garbage-collect)
-    (with-temp-buffer
-      (magit-section-mode)
+    (revu-render-cost-test-in-review root files
       (dotimes (_ revu-render-cost-test-renders)
-        (push (revu-render-cost-test--render-seconds files) seconds)))
+        (push (revu-render-cost-test--seconds #'revu-render) seconds)))
     (setq seconds (nreverse seconds))
     (should (< (car (last seconds))
                (* revu-render-cost-test-growth (car seconds))))))
+
+(ert-deftest revu-render-cost-of-the-header-is-a-fraction-of-the-render ()
+  "Deciding the header costs a fraction of drawing the buffer.
+A share rather than a time, so the bound says the same thing on a fast
+machine and a slow one.  The Reviewed figure is the part that can run
+away: it is over the whole Source, and one Reviewed mark is enough to
+make it ask the question of every hunk there is."
+  (let ((files (revu-render-cost-test--files)))
+    (garbage-collect)
+    (revu-render-cost-test-in-review root files
+      ;; The first render warms what the buffer memoises -- the Revision
+      ;; git is asked about once -- so neither figure is paying for it.
+      (revu-render)
+      ;; One hunk marked, which is what takes the Reviewed figure off the
+      ;; path an unmarked Review is answered by counting alone.
+      (let* ((hunk (car (revu-diff-file-hunks (car files))))
+             (review (revu-review-add-mark
+                      (revu-review)
+                      (revu-mark-create (revu-diff-file-path (car files))
+                                        (revu-reviewed-hunk-digest hunk)
+                                        (revu-reviewed-hunk-span hunk))))
+             (drawing (revu-render-cost-test--seconds
+                       (lambda ()
+                         (revu-render-diff
+                          files
+                          (revu-reviewed-hidden-p review files)
+                          nil
+                          (revu-reviewed-keep-p review files)
+                          (revu-reviewed-state-p review files)))))
+             (header (revu-render-cost-test--seconds
+                      (lambda () (revu--header review nil)))))
+        (should (< header (* revu-render-cost-test-header-share drawing)))))))
 
 (ert-deftest revu-render-gives-a-section-positions-that-cannot-outlive-it ()
   "Every section of a review buffer holds plain positions, not markers.
