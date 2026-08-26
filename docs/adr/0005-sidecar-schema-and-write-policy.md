@@ -124,6 +124,38 @@ taken against another Revision reads as named, exactly as a Review over a
 range does, because its name was what the reviewer typed and its record
 holds what that resolved to.
 
+On resume the name is the handle and the record is the truth. A Review whose
+Sidecar is already there is over the Source that Sidecar records, and that is
+what the first paint renders — not the diff the entry command was about to take
+against whatever the Revision resolves to now. The two part as soon as the
+branch does: the worktree taken against `main` recorded `C1`, `main` moved on to
+`C2`, and opening the worktree against `main` again is that same Review, still
+over `C1`.
+
+Rendering the caller's diff instead was a bug rather than a second reading of
+what a Review is over. `revu-reload` replays the record and a removed line
+re-locates in the recorded base blob, so the buffer swapped its content on the
+first `g` and the Annotations made before that had been placed against content
+the Review does not hold. Because the record decides, the caller's diff is not
+taken at all once the two have parted, and a Review refused for being over
+nothing still leaves no Sidecar behind.
+
+The everyday `worktree` Review follows the same rule, and it is the same Review
+throughout: it does not fork when `HEAD` moves, and it does not re-base either.
+Opened before a commit lands, it stays over the commit it recorded until it is
+discarded, which is what starting a fresh one is. Re-basing the record on every
+open was rejected for the reason the name is derived the way it is: an
+Annotation is anchored in the Source the Review records, and a Review that
+quietly moves its base moves the ground under everything already written on it.
+
+What the reviewer is not left to discover is the parting itself. The header says
+which commit the Review is over but not that the branch has walked off it, so
+the resume echo names both — `Resumed worktree-vs-main against a1b2c3 (main is
+now d4e5f6)`. A range says as much of either Revision it was typed with. A
+staged Review never says it, because `git diff --cached` is against `HEAD`
+whatever the record holds: its recorded base says where a removed line is read
+from, not what the reviewer is looking at.
+
 The separator is `-vs-`, not `--`: `--` is already the Narrowing's, and a
 Narrowing still slugs its pathspecs onto either name —
 `worktree-vs-qa-2026-08-17--src-foo`. The two cannot be confused for one

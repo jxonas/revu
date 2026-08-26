@@ -43,6 +43,24 @@ write guard blocks on."
     ;; it was, and the guard would read the file as untouched.
     (set-file-times file (time-add (current-time) 2))))
 
+(defun revu-review-test--branch-behind-head (root)
+  "Leave ROOT with a branch `qa\\=' naming a commit that HEAD has moved past.
+The fixture\\='s worktree is committed, so the baseline `qa\\=' stays on is a
+Revision the worktree carries something over, and a Review taken against
+it is `worktree-vs-qa\\=' rather than the `worktree\\=' one: a base naming the
+commit HEAD names is HEAD."
+  (revu-fixture-git-output root "branch" "qa")
+  (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Land the worktree"))
+
+(defun revu-review-test--advance-branch (root)
+  "Move `qa\\=' in ROOT one commit forward, onto a commit that is still not HEAD.
+This is the branch moving under a Review taken against it.  HEAD moves
+twice so that `qa\\=' lands behind it rather than on it, which would open
+the `worktree\\=' Review instead."
+  (revu-fixture-write-file root "README.md" "# Fixture\n\nEdited after the Review.\n")
+  (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Edit the README")
+  (revu-fixture-git-output root "branch" "-f" "qa" "HEAD~"))
+
 ;;;; The scratch bucket
 
 (ert-deftest revu-resuming-a-review-echoes-what-it-picked-up ()
@@ -83,6 +101,80 @@ write guard blocks on."
                     (revu-diff-worktree nil "worktree")
                     messages)))
       (should-not (string-match-p "Resumed" echoed)))))
+
+(ert-deftest revu-resuming-a-review-renders-the-source-it-records ()
+  "A Review resumed is over what its Sidecar records, not what the name resolves to.
+The branch the Review was taken against has moved since, so the diff the
+command was about to take is not the diff the record holds; the record is
+the truth, and it is what the first paint and every later reload show."
+  (revu-fixture-in-repo root
+    (revu-review-test--branch-behind-head root)
+    (let ((recorded (revu-fixture-git-output root "rev-parse" "qa")))
+      (save-current-buffer (revu-diff-worktree "qa"))
+      (revu-fixture-kill-review-buffers)
+      (revu-review-test--advance-branch root)
+      (with-current-buffer (revu-diff-worktree "qa")
+        ;; Only the diff against the recorded commit carries this line;
+        ;; the branch has landed it since.
+        (should (string-match-p "^\\+beta two staged$" (revu-fixture-render))))
+      (should (equal (revu-source-base
+                      (revu-review-source
+                       (revu-fixture-sidecar root "worktree-vs-qa")))
+                     recorded)))))
+
+(ert-deftest revu-resuming-a-review-says-which-revision-moved ()
+  "The echo names both commits when the Revision has left the recorded one.
+The header says which commit the Review is over but not that the branch
+has gone somewhere else, so the resume says it."
+  (revu-fixture-in-repo root
+    (revu-review-test--branch-behind-head root)
+    (let ((recorded (revu-fixture-git-output root "rev-parse" "--short" "qa")))
+      (save-current-buffer (revu-diff-worktree "qa"))
+      (revu-fixture-kill-review-buffers)
+      (revu-review-test--advance-branch root)
+      (let* ((moved (revu-fixture-git-output root "rev-parse" "--short" "qa"))
+             (echoed (ert-with-message-capture messages
+                       (revu-diff-worktree "qa")
+                       messages)))
+        (should-not (equal recorded moved))
+        (should (string-match-p
+                 (regexp-quote (format "Resumed worktree-vs-qa against %s (qa is now %s)"
+                                       recorded moved))
+                 echoed))))))
+
+(ert-deftest revu-resuming-an-unmoved-review-says-nothing-about-revisions ()
+  "A Revision that still names the recorded commit is not worth saying anything about."
+  (revu-fixture-in-repo root
+    (revu-review-test--branch-behind-head root)
+    (save-current-buffer (revu-diff-worktree "qa"))
+    (revu-fixture-kill-review-buffers)
+    (let ((echoed (ert-with-message-capture messages
+                    (revu-diff-worktree "qa")
+                    messages)))
+      (should-not (string-match-p "is now" echoed)))))
+
+(ert-deftest revu-resuming-the-worktree-review-keeps-the-commit-it-recorded ()
+  "The everyday `worktree' Review does not re-base when HEAD moves under it.
+It is one Review throughout, and the commit it was opened against is the
+one its Annotations are anchored in; the echo says HEAD has gone
+elsewhere rather than quietly following it."
+  (revu-fixture-in-repo root
+    (let ((recorded (revu-fixture-git-output root "rev-parse" "--short" "HEAD")))
+      (save-current-buffer (revu-diff-worktree))
+      (revu-fixture-kill-review-buffers)
+      (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Land the worktree")
+      (let* ((moved (revu-fixture-git-output root "rev-parse" "--short" "HEAD"))
+             (echoed (ert-with-message-capture messages
+                       (with-current-buffer (revu-diff-worktree)
+                         ;; The worktree is clean now, so only the diff
+                         ;; against the recorded commit has anything in it.
+                         (should (string-match-p "^\\+beta two staged$"
+                                                 (revu-fixture-render))))
+                       messages)))
+        (should (string-match-p
+                 (regexp-quote (format "Resumed worktree against %s (HEAD is now %s)"
+                                       recorded moved))
+                 echoed))))))
 
 ;;;; Renaming
 

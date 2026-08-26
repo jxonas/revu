@@ -486,7 +486,7 @@ Narrowing and all, so a Review reopens over what it was taken over."
                   (revu-sidecar-load (revu-sidecar-file-name name root))))
          (source (revu-review-source review))
          (default-directory root))
-    (revu--open source (revu--source-files source root) name)))
+    (revu--open source (lambda () (revu--source-files source root)) name)))
 
 (defun revu-discard ()
   "Throw this Review away: its Sidecar, its Export, and its buffer.
@@ -534,32 +534,125 @@ the name itself."
     ('ask (revu--read-review-name source))
     (_ name)))
 
-(defun revu--resumed-message (review placements)
-  "Say what opening REVIEW resumed, or nothing when it carries no Annotation.
-PLACEMENTS is where the render just put them, so what is counted is what
-the reviewer is looking at and no file is read a second time.  A Review
-resumes silently for as long as it has nothing in it; once it does, what
-was picked up is echoed rather than left to be discovered, because the
-scratch bucket of a Source keeps whatever was put in it the last time and
-is meant to be no surprise (ADR-0005\\='s amendment)."
-  (let ((annotations (seq-length (revu-review-annotations review))))
-    (when (> annotations 0)
-      (let ((orphaned (seq-count (lambda (placement)
-                                   (eq (revu-render-placement-state placement)
-                                       'orphaned))
-                                 placements)))
-        (message "Resumed %s: %d Annotation%s (%d orphaned)"
-                 (revu-review-name review) annotations
-                 (if (= annotations 1) "" "s") orphaned)))))
+(defun revu--parted-revision (then now written)
+  "Return WRITTEN and the commit NOW it names, when THEN is another commit.
+Return nil when the Revision has not moved, when either commit is
+missing, or when the reviewer wrote no name for it: a parting that cannot
+be said the way the reviewer wrote it is not worth saying.
 
-(defun revu--open (source files name)
-  "Open the Review called NAME over SOURCE, rendering FILES.
+THEN is the commit the record holds and NOW the one the name resolves to."
+  (when (and written then now (not (equal then now)))
+    (cons written now)))
+
+(defun revu--parted-revisions (recorded source names)
+  "Return the Revisions of SOURCE that RECORDED has other commits for.
+Each is a cons of the Revision as the reviewer wrote it -- NAMES says
+which name was written for which field of the Source -- and the commit it
+names now.
+
+A staged Source never reads as parted: `git diff --cached\\=' is against
+HEAD whatever the record holds, so a staged Review\\='s recorded base says
+where a removed line is read from and not what the reviewer is looking
+at."
+  (delq nil
+        (pcase (revu-source-kind source)
+          ("worktree"
+           (list (revu--parted-revision (revu-source-base recorded)
+                                        (revu-source-base source)
+                                        (alist-get 'base names))))
+          ("range"
+           (list (revu--parted-revision (revu-source-base recorded)
+                                        (revu-source-base source)
+                                        (alist-get 'base names))
+                 (revu--parted-revision (revu-source-head recorded)
+                                        (revu-source-head source)
+                                        (alist-get 'head names)))))))
+
+(defun revu--abbreviated-revision (root revision)
+  "Return REVISION as short as ROOT abbreviates it, or as the record carries it.
+A Revision this repository no longer has still names what the Review was
+taken from, so it is said as it stands rather than not at all."
+  (or (revu-diff-abbreviate-revision root revision) revision))
+
+(defun revu--parted-clause (root recorded parted)
+  "Return what to say about PARTED having left the Revisions RECORDED carries.
+RECORDED is the Source the resumed Review is over and is what the buffer
+shows; PARTED is where the names the reviewer wrote have gone since, read
+in ROOT.  Return nil when they have gone nowhere."
+  (when parted
+    (let ((base (revu--abbreviated-revision root (revu-source-base recorded)))
+          (head (revu-source-head recorded)))
+      (format " against %s (%s)"
+              (if head
+                  (format "%s..%s" base (revu--abbreviated-revision root head))
+                base)
+              (mapconcat (lambda (moved)
+                           (format "%s is now %s" (car moved)
+                                   (revu--abbreviated-revision root (cdr moved))))
+                         parted
+                         ", ")))))
+
+(defun revu--resumed-message (review root parted placements)
+  "Say what opening REVIEW resumed, or nothing when there is nothing to say.
+PLACEMENTS is where the render just put its Annotations, so what is
+counted is what the reviewer is looking at and no file is read a second
+time.  A Review resumes silently for as long as it has nothing in it;
+once it does, what was picked up is echoed rather than left to be
+discovered, because the scratch bucket of a Source keeps whatever was put
+in it the last time and is meant to be no surprise (ADR-0005\\='s
+amendment).
+
+PARTED is the Revisions whose names have left the commits REVIEW records,
+read in ROOT.  Those are said whether or not the Review carries anything:
+the buffer shows the recorded commit but not that the branch has walked
+off it."
+  (let* ((annotations (seq-length (revu-review-annotations review)))
+         (moved (revu--parted-clause root (revu-review-source review) parted))
+         (carried
+          (when (> annotations 0)
+            (format ": %d Annotation%s (%d orphaned)"
+                    annotations (if (= annotations 1) "" "s")
+                    (seq-count (lambda (placement)
+                                 (eq (revu-render-placement-state placement)
+                                     'orphaned))
+                               placements)))))
+    (when (or moved carried)
+      (message "Resumed %s%s%s" (revu-review-name review)
+               (or moved "") (or carried "")))))
+
+(defun revu--open (source read-files name &optional names)
+  "Open the Review called NAME over SOURCE, rendering what READ-FILES gives.
 The Sidecar is resumed when one is already there and written when it is
 not; the buffer is reused when the Review is already open.  What a
-resumed Review carries is echoed.  Return the review buffer."
+resumed Review carries is echoed.  Return the review buffer.
+
+A Sidecar already there is over a Source of its own, and that Source is
+the one rendered: on resume the name is the handle and the record is the
+truth, even when the name was written as a branch that has moved since.
+So READ-FILES is called only while the record and SOURCE agree, and the
+Source the record holds is read anew when they do not -- the first paint
+shows what every later `revu-reload\\=' will, and the diff the caller was
+about to take against a Revision the Review does not hold is never taken
+at all.
+
+NAMES is an alist saying which Revision the reviewer wrote for which
+field of SOURCE, so a name that has walked off the recorded commit is
+echoed as what it is."
   (let* ((root (revu-project-root default-directory))
          (file (revu-sidecar-file-name name root))
-         (sidecar (revu-sidecar-open file (revu-review-create name source)))
+         ;; The record is read before the caller's diff is taken, and
+         ;; written only once there is something to render: a Review
+         ;; refused for being over nothing leaves no Sidecar behind.
+         (resumed (and (file-exists-p file) (revu-sidecar-load file)))
+         (recorded (if resumed
+                       (revu-review-source (revu-sidecar-review resumed))
+                     source))
+         (files (if (equal recorded source)
+                    (funcall read-files)
+                  (revu--source-files recorded root)))
+         (sidecar (or resumed
+                      (revu-sidecar-open file
+                                         (revu-review-create name source))))
          (buffer (get-buffer-create (revu-buffer-name name)))
          (placements nil))
     (with-current-buffer buffer
@@ -570,7 +663,9 @@ resumed Review carries is echoed.  Return the review buffer."
             revu--files files
             placements (revu-render)))
     (pop-to-buffer buffer)
-    (revu--resumed-message (revu-sidecar-review sidecar) placements)
+    (revu--resumed-message (revu-sidecar-review sidecar) root
+                           (revu--parted-revisions recorded source names)
+                           placements)
     buffer))
 
 (defun revu--narrowing-subject (paths)
@@ -623,12 +718,15 @@ to narrow -- the magit Bridge -- ever narrows."
                                   name))
          (source (revu-source-worktree revision paths)))
     (revu--open source
-                (revu--diff-files
-                 (revu-diff-parse (revu-diff-worktree-text root revision paths))
-                 (format "The worktree at %s carries nothing %s does not%s"
-                         root (or base "HEAD")
-                         (revu--narrowing-subject paths)))
-                name)))
+                (lambda ()
+                  (revu--diff-files
+                   (revu-diff-parse
+                    (revu-diff-worktree-text root revision paths))
+                   (format "The worktree at %s carries nothing %s does not%s"
+                           root (or base "HEAD")
+                           (revu--narrowing-subject paths))))
+                name
+                `((base . ,(or base "HEAD"))))))
 
 ;;;###autoload
 (defun revu-diff-staged (&optional name paths)
@@ -641,10 +739,11 @@ the Source to those pathspecs, and is never prompted for."
          (source (revu-source-staged (revu-diff-head-revision root) paths))
          (name (revu--review-name source name)))
     (revu--open source
-                (revu--diff-files
-                 (revu-diff-parse (revu-diff-staged-text root paths))
-                 (format "Nothing is staged in %s to review%s"
-                         root (revu--narrowing-subject paths)))
+                (lambda ()
+                  (revu--diff-files
+                   (revu-diff-parse (revu-diff-staged-text root paths))
+                   (format "Nothing is staged in %s to review%s"
+                           root (revu--narrowing-subject paths))))
                 name)))
 
 ;;;###autoload
@@ -666,11 +765,13 @@ Review resumes itself rather than the full one."
                                     (revu--resolve root head)
                                     paths)))
     (revu--open source
-                (revu--diff-files
-                 (revu-diff-parse (revu-diff-range-text root base head paths))
-                 (format "%s..%s changes nothing in %s to review%s"
-                         base head root (revu--narrowing-subject paths)))
-                name)))
+                (lambda ()
+                  (revu--diff-files
+                   (revu-diff-parse (revu-diff-range-text root base head paths))
+                   (format "%s..%s changes nothing in %s to review%s"
+                           base head root (revu--narrowing-subject paths))))
+                name
+                `((base . ,base) (head . ,head)))))
 
 (defun revu--resolve (root revision)
   "Return the commit REVISION names in ROOT.
@@ -702,7 +803,7 @@ diff it cannot say the provenance of."
         (user-error "%s names %s, which this repository does not have"
                     (buffer-name buffer) object)))
     (let ((source (revu-source-range (car revisions) (cdr revisions))))
-      (revu--open source (revu-diff-parse text)
+      (revu--open source (lambda () (revu-diff-parse text))
                   (revu--review-name source name)))))
 
 ;;;; Plain files
@@ -762,7 +863,7 @@ only: it puts point on its first line in the review buffer."
          (source (revu-source-file path))
          (name (revu--review-name source name))
          (default-directory root))
-    (revu--open source (revu--source-files source root) name)
+    (revu--open source (lambda () (revu--source-files source root)) name)
     (when line
       (with-current-buffer (revu-buffer-name name)
         (revu--goto-line line)))))
