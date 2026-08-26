@@ -6,7 +6,7 @@ type: task
 priority: 3
 mode: hitl
 created: '2026-08-23T22:22:35.862419935Z'
-updated: '2026-08-24T19:20:10.541118667Z'
+updated: '2026-08-26T17:37:36.630153928Z'
 tags:
 - needs-triage
 acceptance:
@@ -14,6 +14,7 @@ acceptance:
   done: false
 links:
 - dcr-01m0tkej1jg9
+- dcr-01m0zjc6bscw
 ---
 
 ## Description

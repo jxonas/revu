@@ -6,7 +6,7 @@ type: feature
 priority: 2
 mode: afk
 created: '2026-08-24T19:20:10.541118667Z'
-updated: '2026-08-24T23:02:09.230142017Z'
+updated: '2026-08-26T17:37:51.689166627Z'
 closed: '2026-08-24T23:02:09.230142017Z'
 acceptance:
 - title: revu-diff-worktree takes an optional base Revision, defaulting to HEAD; it opens the diff of the worktree against that Revision and the Source records the commit it resolves to
@@ -26,6 +26,8 @@ acceptance:
 links:
 - dcr-01m0rbfvtpkk
 - dcr-01m0tf5gqcc1
+- dcr-01m0zjc68crm
+- dcr-01m0zjcn2gbj
 ---
 
 ## Description
