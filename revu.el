@@ -668,6 +668,16 @@ echoed as what it is."
                            placements)
     buffer))
 
+(defun revu--read-since-revision ()
+  "Prompt for the Revision `revu-diff-since\\=' is to review the worktree against.
+Completion is over the local branches and tags, and any other Revision
+can be written instead: the prompt is a `completing-read\\=' that requires
+no match, because git reads far more than revu can list."
+  (completing-read "Review the worktree since Revision: "
+                   (revu-diff-revision-names
+                    (revu-project-root default-directory))
+                   nil nil))
+
 (defun revu--narrowing-subject (paths)
   "Return what to say about the Narrowing PATHS in a refusal, or nothing.
 A narrowed Source that came up empty is a different thing from an empty
@@ -727,6 +737,41 @@ to narrow -- the magit Bridge -- ever narrows."
                            (revu--narrowing-subject paths))))
                 name
                 `((base . ,(or base "HEAD"))))))
+
+;;;###autoload
+(defun revu-diff-since (revision &optional name)
+  "Review everything the worktree carries that Revision REVISION does not.
+This is the reviewer\\='s \"everything since the tag\": the commits that
+landed on top of REVISION and the edits that are not committed yet, read
+as one diff.  The Source is the one `revu-diff-worktree\\=' takes against a
+base, with the base prompted for rather than passed, and the Review is
+the same Review -- `worktree-vs-<revision>\\=', named for the Revision as
+it was typed.
+
+Interactively the prompt completes over the repository\\='s local branches
+and tags and takes any other Revision as free text, so `HEAD~3\\=', an
+abbreviated id or `@{u}\\=' can be written instead.  Nothing is offered as
+a default: a reviewer asking for everything since a point knows which
+point they mean.
+
+NAME names the Review, and is the name derived from the Source when it
+is nothing; interactively a prefix argument asks for one.  A REVISION
+naming the commit HEAD names opens the everyday `worktree\\=' Review, and
+one naming nothing at all is refused.
+
+Asking again for the same REVISION resumes the Review over the commit it
+recorded when it was first opened, whatever the Revision has moved to
+since: that commit is what the Annotations already written are anchored
+in, so `g\\=' shows what has landed on top of it -- and what is still
+uncommitted -- against it."
+  (interactive (list (revu--read-since-revision) (revu--name-argument)))
+  ;; Resolving here is what refuses a REVISION naming nothing, in the
+  ;; words every entry command refuses one with.  Nothing at all is
+  ;; refused by the same call: `revu-diff-worktree' reads a base of
+  ;; nothing as HEAD, and the worktree since nothing is not the Review
+  ;; of what is about to be committed.
+  (revu--resolve (revu-project-root default-directory) revision)
+  (revu-diff-worktree revision name))
 
 ;;;###autoload
 (defun revu-diff-staged (&optional name paths)

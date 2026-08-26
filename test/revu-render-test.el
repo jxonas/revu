@@ -453,6 +453,145 @@ is about to be committed rather than a second one beside it."
       (should (string-match-p "no-such-thing" message)))
     (should-not (revu-fixture-sidecar root "worktree-vs-no-such-thing"))))
 
+(ert-deftest revu-since-command-opens-the-worktree-against-the-revision-it-reads ()
+  "`revu-diff-since' prompts for a Revision and opens the worktree against it.
+Completion offers the local branches and tags, and requires no match, so
+any Revision git reads can be written instead."
+  (revu-fixture-in-repo root
+    (let (collection require-match)
+      (cl-letf (((symbol-function 'completing-read)
+                 (lambda (_prompt table &optional _predicate match &rest _)
+                   (setq collection table require-match match)
+                   "feature")))
+        (call-interactively #'revu-diff-since))
+      (should (member "feature" collection))
+      (should (member "main" collection))
+      (should-not require-match))
+    (with-current-buffer "*revu: worktree-vs-feature*"
+      (let ((text (revu-fixture-render)))
+        (should (string-match-p "-alpha three on feature" text))
+        (should (string-match-p "\\+alpha seven in the worktree" text))))
+    (should (equal (revu-source-base
+                    (revu-review-source
+                     (revu-fixture-sidecar root "worktree-vs-feature")))
+                   (revu-fixture-git-output root "rev-parse" "feature")))))
+
+(ert-deftest revu-since-command-completes-over-branches-and-tags-only ()
+  "Tags are offered beside the local branches; remote branches are not.
+A tag is what \"everything since the release\" is usually written as, and
+the refs a fetch dragged in would bury the handful being worked on."
+  (revu-fixture-in-repo root
+    (revu-fixture-git-output root "tag" "v1" "feature")
+    (revu-fixture-git-output root "update-ref" "refs/remotes/origin/main" "HEAD")
+    (let (collection)
+      (cl-letf (((symbol-function 'completing-read)
+                 (lambda (_prompt table &rest _) (setq collection table) "v1")))
+        (call-interactively #'revu-diff-since))
+      (should (member "v1" collection))
+      (should (member "feature" collection))
+      (should-not (member "origin/main" collection)))
+    (should (get-buffer "*revu: worktree-vs-v1*"))))
+
+(ert-deftest revu-since-command-takes-a-revision-nothing-names ()
+  "Free text reaches git: a Revision no branch or tag names still opens.
+The Review is named for it as it was typed, exactly as a named ref is."
+  (revu-fixture-in-repo root
+    (let ((written (revu-fixture-git-output root "rev-parse" "--short" "feature")))
+      (cl-letf (((symbol-function 'completing-read)
+                 (lambda (&rest _) written)))
+        (call-interactively #'revu-diff-since))
+      (should (get-buffer (format "*revu: worktree-vs-%s*" written)))
+      (should (equal (revu-source-base
+                      (revu-review-source
+                       (revu-fixture-sidecar root (format "worktree-vs-%s" written))))
+                     (revu-fixture-git-output root "rev-parse" "feature"))))))
+
+(ert-deftest revu-since-command-asks-for-a-name-under-a-prefix-argument ()
+  "A prefix argument asks for a name of the Review's own, as the others do."
+  (revu-fixture-in-repo root
+    (let (offered)
+      (cl-letf (((symbol-function 'completing-read)
+                 (lambda (&rest _) "feature"))
+                ((symbol-function 'read-string)
+                 (lambda (_prompt &optional _initial _history default)
+                   (setq offered default)
+                   "named-by-hand")))
+        (let ((current-prefix-arg '(4)))
+          (call-interactively #'revu-diff-since)))
+      (should (equal offered "worktree-vs-feature"))
+      (should (get-buffer "*revu: named-by-hand*")))))
+
+(ert-deftest revu-since-command-reads-a-revision-naming-head-as-the-worktree ()
+  "A Revision naming the commit HEAD names opens the everyday worktree Review."
+  (revu-fixture-in-repo root
+    (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "main")))
+      (call-interactively #'revu-diff-since))
+    (should (get-buffer "*revu: worktree*"))
+    (should-not (revu-fixture-sidecar root "worktree-vs-main"))))
+
+(ert-deftest revu-since-command-refuses-a-revision-naming-nothing ()
+  "A Revision naming no commit is refused, in the words every entry command uses.
+The refusal is compared against another entry command's, not against the
+one this command delegates to: what the criterion asks is that a
+reviewer reads the same sentence wherever they wrote the Revision."
+  (revu-fixture-in-repo root
+    (let ((refusal (cl-letf (((symbol-function 'completing-read)
+                              (lambda (&rest _) "no-such-thing")))
+                     (cadr (should-error (call-interactively #'revu-diff-since)
+                                         :type 'user-error)))))
+      (should (equal refusal
+                     (cadr (should-error (revu-diff-range "no-such-thing" "HEAD")
+                                         :type 'user-error)))))
+    (should-not (revu-fixture-sidecar root "worktree-vs-no-such-thing"))))
+
+(ert-deftest revu-since-command-refuses-a-revision-that-is-nothing-at-all ()
+  "No Revision at all is refused rather than read as HEAD.
+`revu-diff-worktree' takes a base of nothing as HEAD, and a caller from
+Lisp that named no Revision must not land in the everyday `worktree'
+Review by that route: it asked for the worktree since something."
+  (revu-fixture-in-repo root
+    (should-error (revu-diff-since nil) :type 'user-error)
+    (should-error (revu-diff-since "") :type 'user-error)
+    (should-not (get-buffer "*revu: worktree*"))
+    (should-not (revu-fixture-sidecar root "worktree"))))
+
+(ert-deftest revu-since-command-resumes-the-review-pinned-to-the-base-it-recorded ()
+  "Asking again for the same Revision resumes the Review over the commit it holds.
+Commits landing on top move the branch, not the Review: `g' shows them,
+and the edits still uncommitted, as changes against the original base."
+  (revu-fixture-in-repo root
+    ;; `qa' names a commit HEAD moves past, so the worktree carries
+    ;; something over it and the Review is the worktree-vs one.
+    (revu-fixture-git-output root "branch" "qa")
+    (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Land the worktree")
+    (let ((recorded (revu-fixture-git-output root "rev-parse" "qa")))
+      (cl-letf (((symbol-function 'completing-read) (lambda (&rest _) "qa")))
+        (save-current-buffer (call-interactively #'revu-diff-since))
+        (revu-fixture-kill-review-buffers)
+        ;; An agent commits on top twice over, and `qa' follows one of
+        ;; them: the Revision has moved, and it is still not HEAD.
+        (revu-fixture-write-file root "beta.txt"
+                                 "beta one\nbeta two landed\nbeta three\n")
+        (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Land beta")
+        (revu-fixture-write-file root "README.md" "# Fixture\n\nEdited after.\n")
+        (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Edit the README")
+        (revu-fixture-git-output root "branch" "-f" "qa" "HEAD~")
+        (with-current-buffer (call-interactively #'revu-diff-since)
+          (should (equal (buffer-name) "*revu: worktree-vs-qa*"))
+          (revu-fixture-write-file
+           root "alpha.txt"
+           (replace-regexp-in-string "alpha one" "alpha one changed"
+                                     revu-fixture-alpha-baseline t t))
+          (revu-reload)
+          (let ((text (revu-fixture-render)))
+            ;; The commit that landed on top, and the edit made since.
+            (should (string-match-p "\\+beta two landed" text))
+            (should (string-match-p "\\+alpha one changed" text)))))
+      (should (equal (revu-source-base
+                      (revu-review-source
+                       (revu-fixture-sidecar root "worktree-vs-qa")))
+                     recorded)))))
+
 (ert-deftest revu-entry-commands-open-on-the-derived-name-without-a-prompt ()
   "An entry command asked for no name opens on the derived one, silently."
   (revu-fixture-in-repo root

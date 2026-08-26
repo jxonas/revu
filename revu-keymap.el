@@ -262,6 +262,7 @@ the reviewer already knows the key for is not a palette."
     ("D" "discard" revu-discard)]
    ["Review something else"
     ("dw" "the worktree" revu-diff-worktree)
+    ("dS" "the worktree since a Revision" revu-diff-since)
     ("ds" "what is staged" revu-diff-staged)
     ("dr" "a range of Revisions" revu-diff-range)
     ("db" "the diff in a buffer" revu-diff-buffer)

@@ -156,6 +156,16 @@ at, and one call answers for both halves."
         (unless (string-empty-p described)
           described)))))
 
+(defun revu-diff-revision-names (root)
+  "Return the local branch and tag names the repository at ROOT carries.
+These are the Revisions a reviewer picks one of by name, and the whole
+of what revu offers for completion.  Remote branches are left out: they
+can still be written, and offering every ref a fetch dragged in buries
+the handful that are being worked on."
+  (split-string (revu-diff--git root "for-each-ref" "--format=%(refname:short)"
+                                "refs/heads" "refs/tags")
+                "\n" t))
+
 (defun revu-diff-object-exists-p (root object)
   "Return non-nil when OBJECT names an object present in ROOT.
 A blob is an object but not a Revision, so this is the question a diff's

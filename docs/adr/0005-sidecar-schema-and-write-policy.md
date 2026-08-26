@@ -162,5 +162,13 @@ Narrowing still slugs its pathspecs onto either name —
 another, because a slug collapses every run of awkward characters to a
 single hyphen and so no Revision can spell `--`.
 
+The Revision is asked for by `revu-diff-since`, which prompts with completion
+over the repository's local branches and tags and takes any other Revision as
+free text — `revu-diff-worktree`'s own prefix argument is already spent on the
+Review's name, so the base needed a command of its own rather than a second
+prefix reading. That command adds no Source kind and no noun: "since" is the
+reviewer's gesture, and what opens is the worktree-vs Review, named and headed
+as such.
+
 No schema change: `base` already holds the commit, and a reader older than
 this amendment reads such a Sidecar as the worktree Source it is.

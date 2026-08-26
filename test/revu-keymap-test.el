@@ -296,6 +296,7 @@ motions, which have always moved by visual line themselves."
                              ;; list every command, and the entry commands
                              ;; have no key of their own to be found by.
                              'revu-diff-worktree
+                             'revu-diff-since
                              'revu-diff-staged
                              'revu-diff-range
                              'revu-diff-buffer
