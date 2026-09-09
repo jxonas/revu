@@ -49,7 +49,7 @@ stored state is a lie as soon as the file is edited outside Emacs.
 ## Amendment: a patch Annotation carries no Anchor
 
 An Anchor re-locates a Target against file content after the Source changes. A
-patch Source (ADR-0005's amendment) has neither half of that. There is no file
+patch Source (ADR-0005's worktree-vs-Revision amendment) has neither half of that. There is no file
 content to search — the diff may have been taken on another machine, and
 `git show` has nothing to give for a path this repository has never held — and
 there is nothing to drift, because the record is the diff text the reviewer
@@ -68,8 +68,9 @@ The Consequences above say an uncommitted working-tree Source has no base blob,
 so its removed-line Anchors are `fresh` while the worktree is unchanged and
 `orphaned` otherwise. That assumed the worktree Source was a diff against the
 index. It is not: it is `git diff <revision>` against `HEAD` or any other
-Revision (ADR-0005's amendment), and it records the commit that Revision
-resolved to as `base`, exactly as the staged and the range Source do.
+Revision (ADR-0005's worktree-vs-Revision amendment), and it records the
+commit that Revision resolved to as `base`, exactly as the staged and the
+range Source do.
 
 So every git diff Source records a commit as its base, and a line the diff shows
 as removed was removed from that commit. It re-locates inside

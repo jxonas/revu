@@ -96,7 +96,7 @@ A patch anchors in nothing, on either side.  It may have been taken on
 another machine, so there is no content here to search, and it is
 immutable, so there is nothing that can drift: its Annotations carry no
 Anchor and re-locate at the line they were recorded on (ADR-0003\\='s
-amendment)."
+patch amendment)."
   (if (equal (revu-source-kind source) "patch")
       nil
     (if (equal origin "removed")
