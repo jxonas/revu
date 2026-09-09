@@ -26,6 +26,13 @@ Source changes. An Anchor is `fresh` when it still matches, `moved` when it was
 re-found elsewhere, and `orphaned` when it was not found at all.
 _Avoid_: Position, offset
 
+**Placement**:
+An Annotation resolved against the current Source at load time: the
+Annotation itself with its Anchor state and Path resolution. Derived on
+load, never persisted; what a renderer consumes and what the core hands
+back.
+_Avoid_: Resolved annotation, located annotation, hit
+
 **Origin**:
 Which side of a diff a line belongs to: `added`, `removed`, or `context`.
 Removed lines are numbered in the old file, the rest in the new.
