@@ -1,12 +1,12 @@
 ---
 id: dcr-01m0zjc6bscw
 title: A worktree Source includes untracked files
-status: open
+status: in_progress
 type: feature
 priority: 3
 mode: afk
 created: '2026-08-26T17:37:36.630153928Z'
-updated: '2026-09-09T20:49:35.141470699Z'
+updated: '2026-09-09T21:16:09.943773578Z'
 tags:
 - needs-triage
 acceptance:

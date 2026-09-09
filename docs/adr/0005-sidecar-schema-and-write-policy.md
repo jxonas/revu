@@ -210,3 +210,65 @@ No schema bump: the kind is new, and a reader older than this refuses it by the
 kind it does not know — which is the right answer, since it could not read the
 Source either. There is no migration. A Review recorded as a blob-to-blob range
 by the version before this one is v0 personal state and is discarded by hand.
+
+## Amendment: a worktree Source carries its untracked files
+
+`git diff <rev>` shows no file git does not track, so a file the reviewer or
+their agent created and never staged was invisible to the Review that promises
+everything the worktree carries that `<rev>` does not. Forgetting `git add` is
+the common case, and a Review that silently omits the new file is worse than
+one that shows nothing at all: nothing prompts the reviewer to look.
+
+So every worktree Source — against `HEAD` or any other Revision, narrowed or
+not — carries each untracked file as an all-added file. This is not a new Source
+kind and not a Narrowing. It widens what the worktree Source *means*, at the one
+place that Source is cut, so reload, resume, `revu-diff-since` and the magit
+Bridge all see the same files without a word of their own; a Narrowing limits
+untracked files exactly as it limits tracked ones; and a worktree that differs
+from its base only by an untracked file opens a Review instead of being refused
+as empty. An untracked binary or empty file is a file with no hunks, as a
+tracked one is. Nothing is recorded: the Source's `kind` and `base` are what
+they were, and a Sidecar written before this amendment reads as the Source it
+always was.
+
+Ignored files are not among them. `git ls-files --others --exclude-standard` is
+what makes `.gitignore` mean here what it means everywhere else, and a reviewer
+who ignored a build directory did not ask to read it. The one further exclusion
+is `/.revu/`: the Review's own Sidecar and Export live there, and a Review that
+listed the file it is being written into would carry a file whose content
+changed with every Annotation. The pattern is anchored, so a `.revu` someone
+keeps deeper in the tree is theirs. Documentation still only *recommends*
+git-ignoring `.revu/`, which is why the exclusion cannot be left to
+`.gitignore`.
+
+Each untracked file is diffed on its own, `git diff --no-index` against the null
+device, with the options the rest of the Source is cut with. `git add -N` would
+have folded them into the one tracked diff for one invocation instead of one per
+file, and was rejected: it writes the reviewer's index, and opening a Review
+must not stage anything. The cost is a `ls-files` plus a `diff` per untracked
+file, paid on every read of the Source.
+
+Two corners. A path the tracked diff already names is left to the diff — a file
+deleted from the index and written again on disk is both, and rendering the path
+twice would leave its Reviewed marks and its folds (ADR-0012) unable to say
+which of the two they meant; git's own answer for it is `deleted`, and staging
+turns it into the modification it is. A directory holding a repository of its
+own is reported by git as one entry and is dropped rather than descended into:
+there is no diff of a directory to take.
+
+Reviewed marks, Path resolution and Anchors need no new rule, and that is the
+point of cutting the untracked file with the same options as the rest. A
+Reviewed mark digests hunk content and never a blob (ADR-0009), and
+`--no-index` writes the same `@@ -0,0 +1,N @@` and the same `+` lines the staged
+diff of that file will write, so a mark taken before the `git add` still holds
+after it — except where a clean filter stands between the two, `core.autocrlf`
+or a `.gitattributes filter=`, which rewrites the bytes on the way into the
+index and leaves the mark reading `stale`, which is what it honestly is: the
+content the reviewer read is not the content that was staged. Path resolution reports the file `present` while it is on disk and
+`deleted` once it is gone; git cannot follow a rename of a file it never
+tracked, and that reads `deleted` like any rename git misses (ADR-0004). An
+Anchor on an all-added file never needs a base blob, so ADR-0003's rule for
+removed lines does not apply. What does move is the file's position in the
+buffer: untracked files are appended after the tracked diff, so staging one
+lets it interleave. Only the positional fold identity of ADR-0012 notices, and
+appending is what keeps every tracked file's position where it was.

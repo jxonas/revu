@@ -707,9 +707,11 @@ Sidecar from being written for a Review of nothing."
 (defun revu-diff-worktree (&optional base name paths)
   "Review everything the worktree carries that Revision BASE does not.
 BASE defaults to HEAD, which is the everyday reading: staged and
-unstaged changes alike, because that is what the reviewer is about to
-commit.  Any other Revision widens the Source to what `git diff <base>\\='
-shows, which is what a reviewer asking for everything since a tag means.
+unstaged changes alike, and the files that were never staged at all --
+ADR-0005\\='s untracked-files amendment -- because that is what the
+reviewer is about to commit.  Any other Revision widens the Source the
+same way against that Revision, which is what a reviewer asking for
+everything since a tag means.
 
 NAME names the Review, and is the name derived from the Source when it
 is nothing; interactively a prefix argument asks for one.  The derived

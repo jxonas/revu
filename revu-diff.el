@@ -172,6 +172,52 @@ of them as a Revision."
   (when (> (length paths) 0)
     (cons "--" (append paths nil))))
 
+(defconst revu-diff--untracked-exclude "--exclude=/.revu/"
+  "The `git ls-files' argument keeping a Review from listing its own state.
+The Review\\='s own Sidecar and Export are written under
+`revu-directory-name' -- spelled out here because that lives a layer
+above this file -- and a Review that listed the file it is being written
+into would carry a file whose content changed with every Annotation.
+The exclusion is anchored to the root, so a directory of that name
+someone keeps deeper in the tree is theirs.")
+
+(defun revu-diff--untracked-paths (root paths)
+  "Return the untracked files of the worktree at ROOT, in git\\='s order.
+Ignored files are not among them: `--exclude-standard' is what makes
+`.gitignore' mean here what it means everywhere else.  PATHS, when
+given, is the Narrowing, and limits these exactly as it limits the
+tracked half of the Source.
+
+An entry ending in a slash is a repository nested in this one, which git
+reports whole rather than descending into.  It is dropped: there is no
+diff of a directory to take, and asking for one would fail the Source
+the reviewer asked for over a repository that is not theirs."
+  (seq-remove
+   (lambda (path) (string-suffix-p "/" path))
+   (split-string (apply #'revu-diff--git root "ls-files" "--others"
+                        "--exclude-standard" revu-diff--untracked-exclude "-z"
+                        (revu-diff--pathspecs paths))
+                 "\0" t)))
+
+(defun revu-diff--untracked-text (root path)
+  "Return the all-added diff of the untracked file PATH under ROOT.
+`git diff --no-index' against the null device writes the file as the
+added file it is, with the same options the rest of the Source is cut
+with -- so its hunk carries the content lines it will carry once the
+file is staged, and a Reviewed mark taken over it holds across the `git
+add' unless a clean filter rewrites the bytes on the way into the
+index.  Git reports a difference by exiting 1, which is the whole point
+of the call; anything above that is a failure like any other."
+  (let ((result (revu-diff--call
+                 root (append (list "diff" "--no-index")
+                              revu-diff--diff-options
+                              (list "--" null-device path)))))
+    (unless (memq (car result) '(0 1))
+      (signal 'revu-git-failed
+              (list (format "git diff of the untracked %s failed in %s: %s"
+                            path root (string-trim (cdr result))))))
+    (cdr result)))
+
 (defun revu-diff-worktree-text (root revision &optional paths)
   "Return the unified diff of the worktree at ROOT against REVISION.
 Everything uncommitted is here, staged or not: the reviewer asking for
@@ -179,9 +225,24 @@ the worktree is asking to read what they are about to commit, and a
 change that has already been staged is still one of them.  Diffing
 against the Revision the Review records is also what lets a removed line
 re-locate in the base blob (ADR-0003).  PATHS, when given, is the
-Narrowing the diff is limited to."
-  (apply #'revu-diff--git root "diff" revision
-         (append revu-diff--diff-options (revu-diff--pathspecs paths))))
+Narrowing the diff is limited to.
+
+An untracked file is here too, as an all-added file appended after the
+diff git gives (ADR-0005\\='s untracked-files amendment).  `git diff' shows
+no file git does not track, and forgetting to stage a new file is the
+common case, so a Source promising everything the worktree carries has
+to go and ask for those separately.  A path the diff already names is
+left to the diff: a file deleted from the index and written again is
+both, and rendering it twice would leave its Reviewed marks and its
+folds unable to say which of the two they meant."
+  (let* ((diffed (apply #'revu-diff--git root "diff" revision
+                        (append revu-diff--diff-options
+                                (revu-diff--pathspecs paths))))
+         (spoken-for (revu-diff--diffed-paths diffed)))
+    (apply #'concat diffed
+           (mapcar (lambda (path) (revu-diff--untracked-text root path))
+                   (seq-remove (lambda (path) (member path spoken-for))
+                               (revu-diff--untracked-paths root paths))))))
 
 (defun revu-diff-staged-text (root &optional paths)
   "Return the unified diff of the index at ROOT against HEAD.
@@ -273,6 +334,17 @@ would orphan the Annotations on a Source that cannot change."
 (defconst revu-diff--file-header-regexp
   "\\`diff --git a/\\(.*\\) b/\\(.*\\)\\'"
   "Regexp matching the `diff --git' line that opens a file's diff.")
+
+(defun revu-diff--diffed-paths (text)
+  "Return the paths the unified diff TEXT already names.
+Read off the `diff --git' headers rather than by parsing: the caller
+only needs to know which paths are spoken for, and a hunk line can never
+be mistaken for a header because every one of them opens with `+', `-',
+a space or a backslash."
+  (let ((paths nil))
+    (dolist (line (split-string text "\n") (nreverse paths))
+      (when (string-match revu-diff--file-header-regexp line)
+        (push (match-string 2 line) paths)))))
 
 (defconst revu-diff--hunk-header-regexp
   "\\`@@ -\\([0-9]+\\)\\(?:,[0-9]+\\)? \\+\\([0-9]+\\)\\(?:,[0-9]+\\)? @@"
