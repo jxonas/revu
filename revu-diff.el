@@ -142,9 +142,8 @@ object id at.  Return nil when git will not abbreviate it."
   "Return REVISION as its abbreviated id and subject, or nil when ROOT has none.
 This is how a Revision is named to the reviewer -- \"abc1234 Add the
 header section\" -- rather than as the forty characters the record holds.
-Nil when git does not know the object as a commit: a Revision rebased
-away is gone, and a pasted diff\\='s `index\\=' header names blobs, which are
-objects and not commits.  The caller falls back to the id it has.
+Nil when git does not know the object as a commit -- a Revision rebased
+away is gone.  The caller falls back to the id it has.
 
 The abbreviation is git\\='s own, so it is the length a log shows the object
 at, and one call answers for both halves."
@@ -165,12 +164,6 @@ the handful that are being worked on."
   (split-string (revu-diff--git root "for-each-ref" "--format=%(refname:short)"
                                 "refs/heads" "refs/tags")
                 "\n" t))
-
-(defun revu-diff-object-exists-p (root object)
-  "Return non-nil when OBJECT names an object present in ROOT.
-A blob is an object but not a Revision, so this is the question a diff's
-`index' header can answer."
-  (eq (car (revu-diff--call root (list "cat-file" "-e" object))) 0))
 
 (defun revu-diff--pathspecs (paths)
   "Return the `git diff\\=' arguments limiting a diff to PATHS, or nil.
@@ -252,21 +245,28 @@ path the file has now.  It is derived on every load and never persisted,
 because the answer changes the moment somebody runs git.
 
 A plain-file Review never follows a rename: a missing file is deleted,
-whether or not it happens to sit inside a repository (ADR-0004)."
-  (let* ((missing (seq-remove
-                   (lambda (path)
-                     (file-exists-p (expand-file-name path root)))
-                   paths))
-         (renames (when (and missing
-                             (not (equal (revu-source-kind source) "file")))
-                    (revu-diff--renames root source))))
-    (mapcar (lambda (path)
-              (cons path
-                    (cond
-                     ((not (member path missing)) 'present)
-                     ((alist-get path renames nil nil #'equal))
-                     (t 'deleted))))
-            paths)))
+whether or not it happens to sit inside a repository (ADR-0004).
+
+A patch is asked nothing at all: it is immutable and was not necessarily
+taken here, so its every path is present.  A diff from another machine
+names files this repository has never held, and reading those as deleted
+would orphan the Annotations on a Source that cannot change."
+  (if (equal (revu-source-kind source) "patch")
+      (mapcar (lambda (path) (cons path 'present)) paths)
+    (let* ((missing (seq-remove
+                     (lambda (path)
+                       (file-exists-p (expand-file-name path root)))
+                     paths))
+           (renames (when (and missing
+                               (not (equal (revu-source-kind source) "file")))
+                      (revu-diff--renames root source))))
+      (mapcar (lambda (path)
+                (cons path
+                      (cond
+                       ((not (member path missing)) 'present)
+                       ((alist-get path renames nil nil #'equal))
+                       (t 'deleted))))
+              paths))))
 
 ;;;; Parsing
 
@@ -277,32 +277,6 @@ whether or not it happens to sit inside a repository (ADR-0004)."
 (defconst revu-diff--hunk-header-regexp
   "\\`@@ -\\([0-9]+\\)\\(?:,[0-9]+\\)? \\+\\([0-9]+\\)\\(?:,[0-9]+\\)? @@"
   "Regexp matching the `@@' line that opens a hunk.")
-
-(defconst revu-diff--index-regexp
-  "\\`index \\([0-9a-f]+\\)\\.\\.\\([0-9a-f]+\\)"
-  "Regexp matching the `index' line naming the blobs a file's diff spans.")
-
-(defun revu-diff-buffer-revisions (text)
-  "Return the Revisions the pasted diff TEXT names, as a cons, or nil.
-The pair comes from the first `index' header, which is the only place a
-unified diff records what it was taken between."
-  (let ((found nil))
-    (dolist (line (split-string text "\n"))
-      (when (and (null found) (string-match revu-diff--index-regexp line))
-        (setq found (cons (match-string 1 line) (match-string 2 line)))))
-    found))
-
-(defun revu-diff-buffer-objects (text)
-  "Return every object the `index' headers of the pasted diff TEXT name.
-A diff carries one header per file, and a diff assembled elsewhere can
-name objects this repository has for its first file and not its tenth.
-Refusing on the first header alone would accept exactly that diff."
-  (let ((objects nil))
-    (dolist (line (split-string text "\n"))
-      (when (string-match revu-diff--index-regexp line)
-        (push (match-string 1 line) objects)
-        (push (match-string 2 line) objects)))
-    (nreverse (delete-dups objects))))
 
 (defun revu-diff-parse (text)
   "Return the files the unified diff TEXT describes.

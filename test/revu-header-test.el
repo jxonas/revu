@@ -88,9 +88,8 @@ Nil when the header draws no such line."
 
 (ert-deftest revu-header-falls-back-to-a-revision-git-cannot-look-up ()
   "A Revision git knows nothing about still names what the Review was over.
-A commit rebased away, and the blob ids a pasted diff names, are gone
-from the repository; the header says the id it has rather than refusing
-to draw."
+A commit rebased away is gone from the repository; the header says the id
+it has rather than refusing to draw."
   (revu-fixture-in-repo root
     (let ((absent "0123456789012345678901234567890123456789"))
       (should-not (revu-diff-describe-revision root absent))
@@ -101,6 +100,22 @@ to draw."
                                absent
                                (revu-fixture-git-output root "rev-parse"
                                                         "--short" "HEAD"))))))))
+
+(ert-deftest revu-header-names-the-patch-a-pasted-diff-is ()
+  "A patch names no Revision and no path, so the header says which patch.
+That is the digest prefix its Review is named for, so the header and the
+name cannot disagree about which diff is on screen."
+  (revu-fixture-in-repo root
+    (let ((text (revu-fixture-git-output root "diff" "main..feature")))
+      (with-temp-buffer
+        (insert text)
+        (revu-diff-buffer (current-buffer)))
+      (with-current-buffer (revu-buffer-name
+                            (revu-review-name-for-source
+                             (revu-source-patch text)))
+        (should (equal (revu-header-test--line "Source")
+                       (format "patch %s"
+                               (revu-patch-digest-prefix (revu-source-patch text)))))))))
 
 (ert-deftest revu-header-shows-a-narrowing-only-when-there-is-one ()
   "A narrowed Source is a different Source, and the header tells them apart."

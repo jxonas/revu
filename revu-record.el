@@ -53,8 +53,14 @@ A Sidecar declaring a higher version is refused rather than guessed at.")
 (defconst revu-origins '("added" "removed" "context")
   "Which Origin a Target line carries: which part of a diff it belongs to.")
 
-(defconst revu-source-kinds '("worktree" "staged" "range" "file")
+(defconst revu-source-kinds '("worktree" "staged" "range" "file" "patch")
   "The kinds of Source a Review may be taken over.")
+
+(defconst revu-patch-digest-prefix-length 12
+  "How much of a patch\\='s digest its derived Review name carries.
+Long enough that two diffs a reviewer works on never collide, short
+enough that the name stays a name.  The name and the header read the
+same prefix, so they cannot disagree about which patch this is.")
 
 (define-error 'revu-invalid-sidecar
   "Invalid revu Sidecar"
@@ -178,8 +184,17 @@ PATHS, when given, is the Narrowing the diff is limited to."
   "Return the Source of the plain file at repository-relative PATH."
   `((kind . "file") (path . ,path)))
 
+(defun revu-source-patch (text)
+  "Return the Source of the unified diff TEXT, recorded whole.
+A pasted diff is a Source of its own and not a range: it may have been
+taken on another machine, and its `index\\=' headers may name objects this
+repository has never held.  So the record is the diff itself.  A Source
+must be readable again from its record alone (ADR-0002), which neither a
+digest nor a pair of blob ids can promise here."
+  `((kind . "patch") (text . ,text)))
+
 (defun revu-source-kind (source)
-  "Return the kind of SOURCE: worktree, staged, range or file."
+  "Return the kind of SOURCE: worktree, staged, range, file or patch."
   (alist-get 'kind source))
 
 (defun revu-source-base (source)
@@ -193,6 +208,10 @@ PATHS, when given, is the Narrowing the diff is limited to."
 (defun revu-source-path (source)
   "Return the path of a plain-file SOURCE, or nil."
   (alist-get 'path source))
+
+(defun revu-source-text (source)
+  "Return the diff text of a patch SOURCE, or nil."
+  (alist-get 'text source))
 
 (defun revu-source-paths (source)
   "Return SOURCE's Narrowing as a list of pathspecs, or nil for none.
@@ -220,6 +239,14 @@ alone."
   (mapconcat (lambda (path) (concat "--" (revu--name-slug path)))
              (revu-source-paths source)
              ""))
+
+(defun revu-patch-digest-prefix (source)
+  "Return the prefix of the patch SOURCE\\='s digest that names it.
+The digest is taken over the diff text exactly as it was recorded: a
+name that is derived from anything less than the whole text would resume
+one Review over two different diffs."
+  (substring (revu-digest (revu-source-text source))
+             0 revu-patch-digest-prefix-length))
 
 (defun revu--worktree-name (source)
   "Return the name the worktree SOURCE derives, without its Narrowing.
@@ -251,6 +278,10 @@ one."
                                          (revu-source-head source)))
                      (revu--narrowing-slug source)))
     ("file" (concat "file-" (revu--slug (revu-source-path source))))
+    ;; A patch has no Revisions to be named after and no path of its own,
+    ;; so its name is its content: the same text pasted again resumes the
+    ;; same Review, and a different text opens a different one.
+    ("patch" (concat "patch-" (revu-patch-digest-prefix source)))
     (kind (signal 'revu-invalid-sidecar (list (format "Unknown Source kind: %s"
                                                       kind))))))
 
@@ -637,6 +668,9 @@ failure this format exists to prevent."
                        revu-source-kinds)
                "the Sidecar has an unknown Source kind: %s"
                (revu-source-kind (revu-review-source review)))
+  (when (equal (revu-source-kind (revu-review-source review)) "patch")
+    (revu--check (stringp (revu-source-text (revu-review-source review)))
+                 "the Sidecar's patch Source carries no diff text"))
   (let ((paths (alist-get 'paths (revu-review-source review))))
     (revu--check (or (null paths)
                      (and (vectorp paths) (seq-every-p #'stringp paths)))

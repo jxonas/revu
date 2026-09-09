@@ -188,9 +188,9 @@ header a git call per keystroke.")
 (defun revu--revision-description (revision)
   "Return REVISION as the reviewer sees it: its abbreviated id and its subject.
 Fall back to REVISION as the record holds it when git knows no such
-commit -- one rebased away, or a blob id a pasted diff named -- because a
-Revision nobody can look up still names what the Review was taken from,
-and a header is not the place to raise it."
+commit -- one rebased away, say -- because a Revision nobody can look up
+still names what the Review was taken from, and a header is not the place
+to raise it."
   (unless revu--revisions
     (setq revu--revisions (make-hash-table :test #'equal)))
   (or (gethash revision revu--revisions)
@@ -213,6 +213,9 @@ against a Revision, a range is between two, and a plain file is itself."
                      (revu--revision-description (revu-source-base source))
                      (revu--revision-description (revu-source-head source))))
     ("file" (format "file %s" (revu-source-path source)))
+    ;; A patch names no Revision and no path, so it says which patch it
+    ;; is: the digest prefix its Review is named for.
+    ("patch" (format "patch %s" (revu-patch-digest-prefix source)))
     (kind kind)))
 
 (defun revu--header-reviewed (review files source)
@@ -314,8 +317,9 @@ than falling back to naming a change nobody made."
   "Return the files to render for SOURCE, read anew in the repository at ROOT.
 This is how a Source is read again on reload: the Review records what it
 was taken from, so a diff can always be taken anew and a plain file read
-anew.  A Review whose Source was a pasted diff records the Revisions it
-spanned, so it is read back from the repository like any other range.
+anew.  A patch is read back from the record itself: the diff text is what
+it records, so every file of it is parsed again exactly as it was pasted,
+whatever this repository holds (ADR-0005\\='s amendment).
 A Source carrying a Narrowing is read again through it, so a narrowed
 Review stays narrowed and its Annotations are re-anchored against the
 files the reviewer asked for (ADR-0005\\='s amendment)."
@@ -334,6 +338,7 @@ files the reviewer asked for (ADR-0005\\='s amendment)."
                 (list (revu--plain-file
                        path
                        (revu--file-content (expand-file-name path root))))))
+      ("patch" (revu-diff-parse (revu-source-text source)))
       (kind (user-error "Cannot read a %s Source again" kind)))))
 
 ;;;###autoload
@@ -828,28 +833,31 @@ it was taken between cannot re-locate a removed line later."
 ;;;###autoload
 (defun revu-diff-buffer (&optional buffer name)
   "Review the unified diff already in BUFFER, which defaults to this one.
-NAME names the Review, and is derived from the Revisions when it is
-nothing; interactively a prefix argument asks for one.  The Revisions are
-read from the diff's own `index' headers, and the Review is recorded as
-the range between them.  A diff carrying no such headers, or naming
-objects this repository does not have, is refused: revu will not review a
-diff it cannot say the provenance of."
+The diff is a Source of its own and is recorded whole, so a diff from a
+mail, a review page or another machine is reviewed like any other Source
+and reads back the same way afterwards.  Its `index\\=' headers are neither
+required nor looked up: what they name is this repository\\='s business and
+a diff taken elsewhere has none of it here.
+
+NAME names the Review, and is derived from the diff text when it is
+nothing; interactively a prefix argument asks for one.  The derived name
+is `patch-\\=' and a prefix of the text\\='s digest, so pasting the same text
+again resumes the same Review and a different text opens a different one.
+
+A buffer with no file diff in it at all is refused, the same way an empty
+Source is, and leaves no Sidecar behind."
   (interactive (list nil (revu--name-argument)))
   (let* ((buffer (or buffer (current-buffer)))
          (text (with-current-buffer buffer
                  (buffer-substring-no-properties (point-min) (point-max))))
-         (root (revu-project-root default-directory))
-         (revisions (revu-diff-buffer-revisions text)))
-    (unless revisions
-      (user-error "%s carries no diff `index' header naming what it spans"
-                  (buffer-name buffer)))
-    (dolist (object (revu-diff-buffer-objects text))
-      (unless (revu-diff-object-exists-p root object)
-        (user-error "%s names %s, which this repository does not have"
-                    (buffer-name buffer) object)))
-    (let ((source (revu-source-range (car revisions) (cdr revisions))))
-      (revu--open source (lambda () (revu-diff-parse text))
-                  (revu--review-name source name)))))
+         (source (revu-source-patch text)))
+    (revu--open source
+                (lambda ()
+                  (revu--diff-files
+                   (revu-diff-parse text)
+                   (format "%s holds no unified diff to review"
+                           (buffer-name buffer))))
+                (revu--review-name source name))))
 
 ;;;; Plain files
 

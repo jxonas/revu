@@ -90,11 +90,19 @@ A removed line is not on the new side at all, so its Anchor is taken in
 the base blob the Source was diffed against; every other line is anchored
 in what the Source's own head shows (ADR-0003).  Return nil when there is
 nothing to anchor in -- the file is gone, or the Source records no
-Revision revu can read."
-  (if (equal origin "removed")
-      (let ((base (revu-source-base source)))
-        (and base (revu-diff-show-file root base path)))
-    (revu-annotate--head-content root source path)))
+Revision revu can read.
+
+A patch anchors in nothing, on either side.  It may have been taken on
+another machine, so there is no content here to search, and it is
+immutable, so there is nothing that can drift: its Annotations carry no
+Anchor and re-locate at the line they were recorded on (ADR-0003\\='s
+amendment)."
+  (if (equal (revu-source-kind source) "patch")
+      nil
+    (if (equal origin "removed")
+        (let ((base (revu-source-base source)))
+          (and base (revu-diff-show-file root base path)))
+      (revu-annotate--head-content root source path))))
 
 (defun revu-annotate--anchor (root source target)
   "Return the Anchor that re-locates TARGET, or nil when it needs none.

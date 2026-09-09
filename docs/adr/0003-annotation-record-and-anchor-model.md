@@ -45,3 +45,19 @@ stored state is a lie as soon as the file is edited outside Emacs.
   `head`). Sidecar naming, schema version, ordering, and review-level note
   handling are the Export & sidecar commands ticket's to settle.
 - No `author` field in v0. It is additive when a multi-reviewer story exists.
+
+## Amendment: a patch Annotation carries no Anchor
+
+An Anchor re-locates a Target against file content after the Source changes. A
+patch Source (ADR-0005's amendment) has neither half of that. There is no file
+content to search — the diff may have been taken on another machine, and
+`git show` has nothing to give for a path this repository has never held — and
+there is nothing to drift, because the record is the diff text the reviewer
+read and a patch is immutable.
+
+So a `line` or `range` Annotation on a patch is written with `anchor` absent,
+and re-locates at the line it was recorded on: permanently `fresh`. That is the
+same path an Annotation an agent appended without an Anchor already takes, and
+it is exact here rather than a fallback. A patch also records no `base`: it was
+not necessarily taken here, so there is no blob for a removed line to be read
+from, and it needs none, because the diff text is what holds the line.

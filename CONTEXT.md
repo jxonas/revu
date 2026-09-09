@@ -81,7 +81,9 @@ _Avoid_: Unnamed review, temporary review, draft
 
 **Source**:
 The thing under review: a diff or a plain file. A diff Source may carry a
-Narrowing.
+Narrowing. A **patch** is the diff Source recorded as its own text — a
+unified diff pasted from a mail, a review page or another machine, which
+names no Revision this repository need have.
 _Avoid_: Input, document, subject
 
 **Narrowing**:

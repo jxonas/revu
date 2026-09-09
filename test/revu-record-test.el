@@ -242,6 +242,29 @@ Sidecar it sits in is refused whole, like any other."
   (should (equal (revu-review-name-for-source (revu-source-file "src/alpha.txt"))
                  "file-src-alpha.txt")))
 
+(ert-deftest revu-review-name-derives-a-patch-from-its-text ()
+  "A patch is named for its own digest: the text is all it has.
+So the same diff pasted again resumes the same Review, and one differing
+by a single character opens a Review of its own."
+  (let* ((text "diff --git a/a.txt b/a.txt\n@@ -1 +1 @@\n-one\n+two\n")
+         (name (revu-review-name-for-source (revu-source-patch text))))
+    (should (equal name (concat "patch-" (substring (revu-digest text)
+                                                    0 revu-patch-digest-prefix-length))))
+    (should (equal name (revu-review-name-for-source (revu-source-patch text))))
+    (should-not (equal name (revu-review-name-for-source
+                             (revu-source-patch (concat text "\n")))))))
+
+(ert-deftest revu-sidecar-refuses-a-patch-source-with-no-text ()
+  "A patch is readable again from its record alone or it is nothing.
+A Sidecar recording the kind without the diff would open a Review over a
+Source nobody can read, so it is refused like any other broken record."
+  (revu-record-test--with-sidecar root file
+    (let ((message (revu-record-test--refusal
+                    file (concat "{\"schema\": 1, \"name\": \"patch-abc\",\n"
+                                 " \"source\": {\"kind\": \"patch\"},\n"
+                                 " \"annotations\": []}\n"))))
+      (should (string-match-p "no diff text" message)))))
+
 (ert-deftest revu-review-name-tells-a-worktree-base-apart ()
   "A worktree taken against a Revision is its own Review, HEAD keeps its own.
 The name of the worktree against HEAD ignores the commit, so the Review

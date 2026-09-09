@@ -172,3 +172,41 @@ as such.
 
 No schema change: `base` already holds the commit, and a reader older than
 this amendment reads such a Sidecar as the worktree Source it is.
+
+## Amendment: a pasted diff is a Source of its own, recorded whole
+
+A unified diff that is already in a buffer is not a range. It may have come from
+a mail, a review page or another machine, and the objects its `index` headers
+name may be ones this repository has never held. So it gets a kind of its own:
+
+```json
+{"kind": "patch", "text": "diff --git a/… b/…\n…"}
+```
+
+The record is the diff text itself. A Source must be readable again from its
+record alone — the Sidecar is the Review's state (ADR-0002), and `revu-reload`,
+`revu-open` and the first paint of a resumed Review all read the record rather
+than whatever the entry command was about to show. A digest cannot do that, and
+the blob ids of the `index` headers cannot be relied on to: they are objects of
+some other repository. Recording the text is what makes the patch Review reopen
+over every file it was taken over instead of over the first file's two blobs.
+
+The name is `patch-` followed by a twelve-character prefix of the text's
+SHA-256, taken over the text exactly as recorded. Pasting the same diff again
+resumes the same Review; a text differing anywhere opens a different one. A
+prefix argument still asks for a name, and the header's Source line says `patch
+<prefix>`, so the name and the header can never disagree about which diff is on
+screen.
+
+A patch is immutable. Reading it again parses the recorded text, every file of
+it; Reviewed marks keep their hunk digests; and Path resolution answers
+`present` for every path without asking git, because a diff taken elsewhere
+names files this repository need not have and reading those as deleted would
+orphan Annotations on a Source that cannot change. `index` headers are neither
+required nor checked. What is refused is a buffer holding no file diff at all,
+the same way an empty Source is refused, and the refusal leaves no Sidecar.
+
+No schema bump: the kind is new, and a reader older than this refuses it by the
+kind it does not know — which is the right answer, since it could not read the
+Source either. There is no migration. A Review recorded as a blob-to-blob range
+by the version before this one is v0 personal state and is discarded by hand.

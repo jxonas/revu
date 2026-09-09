@@ -80,11 +80,11 @@ since -- here, a line that says something else entirely."
                                          root "alpha.txt"))))))))
 
 (ert-deftest revu-annotate-leaves-a-pasted-diff-s-line-unanchored ()
-  "A pasted diff records blob ids, and no blob has a file to read inside it.
-So its Annotations carry no Anchor and re-locate at the line they were
-recorded on.  This is the cost of ADR-0005 having no pasted-diff Source,
-tracked in dcr-01m0r9smxsrv; it is pinned here so it stays deliberate --
-the Annotation must still be written, valid, and rendered."
+  "A patch has no file content on either side, so its Annotations anchor in none.
+There is nothing to search and nothing that can drift: the diff the
+reviewer read is the record, so an Annotation re-locates at the line it
+was recorded on, permanently fresh (ADR-0003's amendment).  It is still
+written, still valid, and still rendered."
   (revu-fixture-in-repo root
     (let ((text (revu-fixture-git-output root "diff" "main..feature")))
       (with-temp-buffer

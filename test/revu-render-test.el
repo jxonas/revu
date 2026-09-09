@@ -321,67 +321,128 @@ nothing for a second render to say differently."
         (should (equal (oref (magit-current-section) value) section))
         (should (= (point) (oref (magit-current-section) start)))))))
 
-(ert-deftest revu-buffer-command-reviews-a-pasted-diff-as-a-range ()
+(ert-deftest revu-buffer-command-records-a-pasted-diff-whole ()
   "`revu-diff-buffer' reviews a unified diff already in a buffer.
-The Revisions come from the diff's own `index' headers, so the Review
-records what the diff spans (ADR-0005 knows no pasted-diff Source)."
+The diff is a Source of its own: the record is the text itself, and the
+Review is named for its digest (ADR-0005's amendment)."
   (revu-fixture-in-repo root
-    (let* ((text (revu-fixture-git-output root "diff" "main..feature"))
-           (revisions nil))
-      (should (string-match "^index \\([0-9a-f]+\\)\\.\\.\\([0-9a-f]+\\)" text))
-      (setq revisions (cons (match-string 1 text) (match-string 2 text)))
+    (let ((text (revu-fixture-git-output root "diff" "main..feature")))
       (with-temp-buffer
         (insert text)
         (revu-diff-buffer (current-buffer) "pasted"))
       (with-current-buffer "*revu: pasted*"
-        (should (string-match-p "\\+alpha three on feature" (revu-fixture-render))))
+        (should (string-match-p "\\+alpha three on feature"
+                                (revu-fixture-render))))
       (let ((source (revu-review-source (revu-fixture-sidecar root "pasted"))))
-        (should (equal (revu-source-kind source) "range"))
-        (should (equal (revu-source-base source) (car revisions)))
-        (should (equal (revu-source-head source) (cdr revisions)))))))
+        (should (equal (revu-source-kind source) "patch"))
+        (should (equal (revu-source-text source) text))))))
 
-(ert-deftest revu-buffer-command-refuses-a-diff-with-no-revisions ()
-  "A diff naming nothing revu can resolve is refused, not guessed at."
+(ert-deftest revu-buffer-command-reviews-a-diff-with-no-index-headers ()
+  "A diff from a mail carries no `index' header, and is reviewed anyway.
+What those headers name is this repository's business, and a diff taken
+elsewhere has none of it here."
   (revu-fixture-in-repo root
     (with-temp-buffer
       (insert "diff --git a/alpha.txt b/alpha.txt\n"
               "--- a/alpha.txt\n+++ b/alpha.txt\n"
               "@@ -1,1 +1,1 @@\n-alpha one\n+alpha uno\n")
-      (should-error (revu-diff-buffer (current-buffer) "pasted")
-                    :type 'user-error))
-    (should-not (revu-fixture-sidecar root "pasted"))))
+      (revu-diff-buffer (current-buffer) "pasted"))
+    (with-current-buffer "*revu: pasted*"
+      (should (string-match-p "\\+alpha uno" (revu-fixture-render))))
+    (should (revu-fixture-sidecar root "pasted"))))
 
-(ert-deftest revu-buffer-command-refuses-revisions-this-repository-lacks ()
-  "A diff taken elsewhere is refused: its Revisions are not here to anchor to."
+(ert-deftest revu-buffer-command-reviews-a-diff-taken-on-another-machine ()
+  "A diff naming objects and files this repository lacks is reviewed as it is.
+Nothing about a patch is looked up: it is read back from its own record."
   (revu-fixture-in-repo root
     (with-temp-buffer
-      (insert "diff --git a/alpha.txt b/alpha.txt\n"
+      (insert "diff --git a/elsewhere.txt b/elsewhere.txt\n"
               "index 1111111111111111111111111111111111111111.."
               "2222222222222222222222222222222222222222 100644\n"
-              "--- a/alpha.txt\n+++ b/alpha.txt\n"
-              "@@ -1,1 +1,1 @@\n-alpha one\n+alpha uno\n")
-      (should-error (revu-diff-buffer (current-buffer) "pasted")
-                    :type 'user-error))
-    (should-not (revu-fixture-sidecar root "pasted"))))
-
-(ert-deftest revu-buffer-command-reads-every-index-header-not-just-the-first ()
-  "A diff is refused for any file naming an object this repository lacks.
-A diff assembled elsewhere can name objects this repository has for its
-first file and not its tenth, and checking the first header alone would
-accept exactly that diff."
-  (revu-fixture-in-repo root
-    (with-temp-buffer
-      ;; The first file's diff is this repository's own; the second names a
-      ;; blob no repository here has ever held.
-      (insert (revu-fixture-git-output root "diff" "main..feature")
-              "\ndiff --git a/elsewhere.txt b/elsewhere.txt\n"
-              "index 3333333333333333333333333333333333333333.."
-              "4444444444444444444444444444444444444444 100644\n"
               "--- a/elsewhere.txt\n+++ b/elsewhere.txt\n"
               "@@ -1,1 +1,1 @@\n-old\n+new\n")
-      (should-error (revu-diff-buffer (current-buffer) "pasted")
-                    :type 'user-error))
-    (should-not (revu-fixture-sidecar root "pasted"))))
+      (revu-diff-buffer (current-buffer) "pasted"))
+    (with-current-buffer "*revu: pasted*"
+      (should (string-match-p "elsewhere.txt" (revu-fixture-render)))
+      (should (string-match-p "\\+new" (revu-fixture-render))))))
+
+(ert-deftest revu-buffer-command-refuses-a-buffer-holding-no-diff ()
+  "A buffer with no file diff in it is refused and leaves no Sidecar.
+An empty review buffer cannot say whether revu failed or whether there
+was nothing there, which is why an empty Source is refused too."
+  (revu-fixture-in-repo root
+    (dolist (text '("" "Looks good to me, ship it.\n"))
+      (with-temp-buffer
+        (insert text)
+        (should-error (revu-diff-buffer (current-buffer) "pasted")
+                      :type 'user-error))
+      (should-not (revu-fixture-sidecar root "pasted")))))
+
+(ert-deftest revu-buffer-command-resumes-the-same-review-for-the-same-text ()
+  "The name is the text's digest, so the same paste is the same Review.
+A different text is a different diff and opens a Review of its own."
+  (revu-fixture-in-repo root
+    (let* ((text (revu-fixture-git-output root "diff" "main..feature"))
+           (other (concat text "\n"))
+           (name (lambda (pasted)
+                   (with-temp-buffer
+                     (insert pasted)
+                     (with-current-buffer (revu-diff-buffer (current-buffer))
+                       (revu-review-name (revu-review)))))))
+      (should (equal (funcall name text) (funcall name text)))
+      (should (string-prefix-p "patch-" (funcall name text)))
+      (should-not (equal (funcall name text) (funcall name other))))))
+
+(defconst revu-render-test--two-file-patch
+  "diff --git a/elsewhere/one.txt b/elsewhere/one.txt
+--- a/elsewhere/one.txt
++++ b/elsewhere/one.txt
+@@ -1,3 +1,3 @@
+ one first
+-one second
++one second changed
+ one third
+diff --git a/elsewhere/two.txt b/elsewhere/two.txt
+--- a/elsewhere/two.txt
++++ b/elsewhere/two.txt
+@@ -1,3 +1,3 @@
+ two first
+-two second
++two second changed
+ two third
+"
+  "A two-file diff over paths this repository has never held.")
+
+(ert-deftest revu-patch-review-reopens-over-every-file-it-recorded ()
+  "A patch is read back whole: every file, its Annotations and its marks.
+The recorded text is the Source, so a reload and a reopen render what was
+pasted rather than whatever this repository can be asked for."
+  (revu-fixture-in-repo root
+    (with-temp-buffer
+      (insert revu-render-test--two-file-patch)
+      (revu-diff-buffer (current-buffer) "pasted"))
+    (with-current-buffer "*revu: pasted*"
+      (revu-fixture-goto-line-matching "^\\+two second changed$")
+      (revu-annotate-line "note" "On the second file")
+      (revu-reviewed-toggle)
+      (revu-reload)
+      (let ((render (revu-fixture-render)))
+        (should (string-match-p "elsewhere/one.txt" render))
+        (should (string-match-p "\\+one second changed" render))
+        (should (string-match-p "\\+two second changed" render))
+        (should (string-match-p "On the second file" render))))
+    (kill-buffer "*revu: pasted*")
+    (revu-open "pasted")
+    (with-current-buffer "*revu: pasted*"
+      (let ((render (revu-fixture-render)))
+        (should (string-match-p "elsewhere/one.txt" render))
+        (should (string-match-p "elsewhere/two.txt" render))
+        (should (string-match-p "On the second file" render)))
+      ;; The mark still holds: it was taken over the hunk of a Source that
+      ;; cannot change.
+      (should (eq (revu-reviewed-state (revu-review) revu--files
+                                       "elsewhere/two.txt")
+                  'reviewed)))))
 
 (ert-deftest revu-worktree-command-shows-staged-changes-too ()
   "The worktree Review is everything HEAD does not have, staged or not.

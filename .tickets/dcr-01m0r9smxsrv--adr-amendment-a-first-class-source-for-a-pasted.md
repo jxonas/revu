@@ -1,27 +1,27 @@
 ---
 id: dcr-01m0r9smxsrv
 title: A pasted unified diff is a Source of its own, recorded whole in the Sidecar
-status: open
+status: in_progress
 type: feature
 priority: 2
 mode: afk
 created: '2026-08-23T21:52:59.321719667Z'
-updated: '2026-09-09T20:38:27.201906474Z'
+updated: '2026-09-09T20:58:01.459506708Z'
 tags:
 - needs-triage
 acceptance:
 - title: ADR-0005 records the patch Source, its derived name and why it stores the diff text whole; ADR-0003 records why a patch Annotation carries no Anchor; the glossary names it
-  done: false
+  done: true
 - title: revu-diff-buffer reviews a diff with no index headers, and one whose headers name objects this repository lacks
-  done: false
+  done: true
 - title: Pasting the same text again resumes the same Review; a different text opens a different one
-  done: false
+  done: true
 - title: revu-reload and revu-open on a patch Review render every file of the recorded diff, with its Annotations and Reviewed marks in place
-  done: false
+  done: true
 - title: A buffer holding no file diff is refused and leaves no Sidecar
-  done: false
+  done: true
 - title: The header's Source line names the patch
-  done: false
+  done: true
 links:
 - dcr-01m0rbfvtpkk
 ---
