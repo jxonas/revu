@@ -61,3 +61,28 @@ same path an Annotation an agent appended without an Anchor already takes, and
 it is exact here rather than a fallback. A patch also records no `base`: it was
 not necessarily taken here, so there is no blob for a removed line to be read
 from, and it needs none, because the diff text is what holds the line.
+
+## Amendment: every git Source records a base, and a removed line re-locates in its blob
+
+The Consequences above say an uncommitted working-tree Source has no base blob,
+so its removed-line Anchors are `fresh` while the worktree is unchanged and
+`orphaned` otherwise. That assumed the worktree Source was a diff against the
+index. It is not: it is `git diff <revision>` against `HEAD` or any other
+Revision (ADR-0005's amendment), and it records the commit that Revision
+resolved to as `base`, exactly as the staged and the range Source do.
+
+So every git diff Source records a commit as its base, and a line the diff shows
+as removed was removed from that commit. It re-locates inside
+`git show <base>:<path>`, as the first sentence of that consequence already
+describes, and a reload after a commit or a rebase keeps finding it. A removed
+line always belongs to a path the base carries, so an all-added file never needs
+a base blob, and neither does the plain-file Source, which has no removed lines
+at all. The patch Source stands apart as the amendment above records it: it
+names no Revision this repository need have, records no `base`, and its
+Annotations carry no Anchor to re-locate.
+
+The one case left with no blob to search is a recorded base the repository no
+longer holds, a commit rewritten and pruned or absent from a shallow clone.
+There, and only there, the fresh-while-unchanged, orphaned-otherwise rule
+applies: the line is nowhere to search for, and searching the current file for
+its text would report a line the reviewer never annotated.

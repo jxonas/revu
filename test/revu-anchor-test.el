@@ -168,8 +168,9 @@ there would orphan an Annotation whose context still says where it went."
   (revu-fixture-with-repo root
     (should-not (revu-diff-show-file root "HEAD" "delta-renamed.txt"))))
 
-(ert-deftest revu-anchor-keeps-a-worktree-removed-line-while-the-file-stands ()
-  "With no base blob, a removed line is fresh until the file it left changes."
+(ert-deftest revu-anchor-keeps-an-unreadable-base-s-removed-line-while-the-file-stands ()
+  "A base the repository cannot read leaves the line nowhere to search for.
+It is fresh until the file it left changes, and orphaned after that."
   (let* ((content revu-anchor-test-content)
          (anchor (revu-anchor-create content 4)))
     (should (equal (revu-anchor-locate-removed nil content anchor 4)

@@ -260,14 +260,14 @@ a range the reviewer never drew."
   "Locate the removed line ANCHOR was taken on, recorded at NUMBER.
 BASE-CONTENT is the base blob the line was removed from, and the ladder
 runs over it: the blob is immutable, so an Annotation on a removed line
-of a staged or ranged Source keeps re-locating however the worktree
-moves on.
+of any git Source keeps re-locating however the worktree moves on.
 
-A worktree Source has no base blob, and then BASE-CONTENT is nil.  The
-line is nowhere to search for, so the Anchor is `fresh' as long as
+A base the repository can no longer read leaves BASE-CONTENT nil -- a
+commit rewritten and pruned, or one a shallow clone never had.  The line
+is nowhere to search for, so the Anchor is `fresh' as long as
 CURRENT-CONTENT is the file the Anchor was taken over and `orphaned' as
-soon as it is not (ADR-0003).  Searching CURRENT-CONTENT for the text
-instead would report a line the reviewer never annotated."
+soon as it is not (ADR-0003\\='s amendment).  Searching CURRENT-CONTENT
+for the text instead would report a line the reviewer never annotated."
   (if base-content
       (revu-anchor-locate base-content anchor number)
     (revu-anchor--found
