@@ -1,28 +1,45 @@
 ---
 id: dcr-01m0r9smxsrv
-title: 'ADR amendment: a first-class Source for a pasted unified diff'
+title: A pasted unified diff is a Source of its own, recorded whole in the Sidecar
 status: open
-type: task
-priority: 3
-mode: hitl
+type: feature
+priority: 2
+mode: afk
 created: '2026-08-23T21:52:59.321719667Z'
-updated: '2026-08-23T22:49:35.407985322Z'
+updated: '2026-09-09T20:38:27.201906474Z'
 tags:
 - needs-triage
 acceptance:
-- title: ADR-0005 records what a pasted-diff Source is, or records that it stays a range
+- title: ADR-0005 records the patch Source, its derived name and why it stores the diff text whole; ADR-0003 records why a patch Annotation carries no Anchor; the glossary names it
   done: false
-- title: revu-diff-buffer no longer refuses a diff whose index headers name objects this repository lacks, or the refusal is written down as deliberate
+- title: revu-diff-buffer reviews a diff with no index headers, and one whose headers name objects this repository lacks
   done: false
+- title: Pasting the same text again resumes the same Review; a different text opens a different one
+  done: false
+- title: revu-reload and revu-open on a patch Review render every file of the recorded diff, with its Annotations and Reviewed marks in place
+  done: false
+- title: A buffer holding no file diff is refused and leaves no Sidecar
+  done: false
+- title: The header's Source line names the patch
+  done: false
+links:
+- dcr-01m0rbfvtpkk
 ---
 
 ## Description
 
-ADR-0005 fixes source.kind to worktree|staged|range|file. The fourth entry command, revu-diff-buffer, reviews a unified diff that is already in a buffer (epic user story 4), and that Source is none of the four.
 
-v0 does what the build notes decided: revu-diff-buffer reads the Revisions from the diff's own index headers, records source.kind "range" with them, and refuses the buffer with a user-error when they name nothing this repository has. So a diff pasted from a mail, a code-review web page or another machine cannot be reviewed at all, and one that can is recorded as a range it was not necessarily taken as.
+A unified diff that is already in a buffer is a Source of its own, not a range. ADR-0005 knows only worktree, staged, range and file, so v0 records a pasted diff as the range between the blob ids its first `index` header names, and refuses any diff whose headers name objects this repository lacks. That gets three things wrong. A diff from a mail, a review page or another machine cannot be reviewed at all. The Review's record claims a range the diff was not taken as. And because on resume the record is the truth (ADR-0005), `revu-reload`, `revu-open` and the first paint of a resumed pasted-diff Review re-read the record with `git diff <blob>..<blob>`, which renders the first file's blobs under a blob id as its path, drops every other file, and orphans every Annotation.
 
-Post-v0 work: amend ADR-0005 with a Source that says what a pasted diff is -- the diff text itself, or a digest of it, plus whatever provenance the headers carry -- and a deterministic Review name for it. Anchoring (ADR-0003) needs a story for removed lines when there is no base blob to read; the worktree Source's answer (fresh while unchanged, orphaned otherwise) may carry over.
+Build the pasted-diff Source end to end. Its kind is `patch` and its record is the diff text itself: the Sidecar is the Review's state (ADR-0002) and a Source must be readable again from its record alone, which a digest cannot do and this repository's objects cannot be relied on to do.
+
+```json
+{"kind": "patch", "text": "diff --git a/… b/…\n…"}
+```
+
+The derived name is `patch-` followed by a short prefix of the text's digest, so pasting the same text again resumes the same Review and a different text opens a different one. A prefix argument still asks for a name. A patch is immutable, so reading it again parses the recorded text, every file of it, and Reviewed marks keep their hunk digests. Its Annotations carry no Anchor and re-locate at the line they were recorded on: there is no file content on either side to search, and the content the reviewer read can never drift. `index` headers are neither required nor checked. What is refused is a buffer with no file diff in it at all, the same way an empty Source is refused today. The header's Source line names the patch by the digest prefix its name carries.
+
+ADR-0005 records the kind, its record, its name and why the text is stored whole rather than a digest or the blob ids. ADR-0003 records that a patch Annotation needs no Anchor, and the glossary's Source entry names the patch. No schema bump: the kind is new, and a reader older than this refuses it by the kind it does not know. No migration: a Review already recorded as a blob-to-blob range is v0 personal state and is discarded by hand.
 
 ## Notes
 

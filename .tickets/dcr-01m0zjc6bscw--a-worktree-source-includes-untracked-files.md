@@ -4,17 +4,21 @@ title: A worktree Source includes untracked files
 status: open
 type: feature
 priority: 3
-mode: hitl
+mode: afk
 created: '2026-08-26T17:37:36.630153928Z'
-updated: '2026-08-26T17:37:36.630153928Z'
+updated: '2026-09-09T20:49:35.141470699Z'
 tags:
 - needs-triage
 acceptance:
-- title: A file created in the worktree and not yet staged or committed appears in every worktree Source as an all-added file, whether the Source is against HEAD or against another Revision
-  done: false
 - title: An ignored file does not appear
   done: false
-- title: Reviewed marks, Path resolution and Anchors on an untracked file behave as the grill decides, and the ADRs that own them record the decision
+- title: A file created in the worktree and neither staged nor committed appears as an all-added file in every worktree Source, against HEAD or another Revision, narrowed or not, and again on reload and on resuming the Review
+  done: false
+- title: A worktree that differs from its base only by an untracked file opens a Review rather than being refused as empty
+  done: false
+- title: A Reviewed mark taken over an untracked file still holds after the file is staged, and its Annotations re-anchor as any added file's do
+  done: false
+- title: ADR-0005 records that untracked files belong to every worktree Source, that ignored files do not, and why Reviewed marks, Path resolution and Anchors need no new rule for them
   done: false
 links:
 - dcr-01m0rbfvtpkk
@@ -22,14 +26,10 @@ links:
 
 ## Description
 
-A worktree Source is `git diff <base>`, and `git diff` never shows an untracked file. A file the agent creates and never `git add`s is therefore invisible to the Review until it is staged or committed — and "everything the worktree carries that the base does not" reads as a promise that a new file counts. An agent forgetting `git add` is the common case, not the odd one.
+A worktree Source is `git diff <base>`, and `git diff` never shows an untracked file. A file the agent creates and never stages is invisible to the Review until it is staged or committed, while "everything the worktree carries that the base does not" promises that a new file counts. Forgetting `git add` is the common case.
 
-Decided so far (grill, 2026-08-26): every worktree Source — against HEAD or against any other Revision — should show untracked files as all-added diffs, `.gitignore` respected. This is not a new Source kind and not a Narrowing; it widens what the worktree Source means.
+Every worktree Source, against HEAD or against any other Revision, includes each untracked file as an all-added file, with `.gitignore` respected so an ignored file never appears. This is not a new Source kind and not a Narrowing: it widens what the worktree Source means, so a Narrowing limits untracked files the same way it limits tracked ones, and reload, resume, `revu-diff-since` and the magit Bridge all see them because they read the worktree Source through the one place it is cut. A worktree that differs from its base only by an untracked file opens a Review instead of being refused as empty. An untracked binary or empty file appears as a file with no hunks, as a tracked one does.
 
-Open questions to grill before this is picked up:
+The untracked file's diff is cut with the same options as the rest of the Source, so its hunk carries the same content lines it will carry once the file is staged and a Reviewed mark taken over it holds across the `git add`. Nothing else needs a new rule. A Reviewed mark digests hunk content only, never a blob. Path resolution reports an untracked file present while it exists on disk and deleted once it is gone; git cannot follow a rename of a file it never tracked, and that reads deleted like any rename git misses. Anchors on an all-added file never need a base blob, so the ADR-0003 rule for removed lines does not apply.
 
-- What digest a Reviewed mark takes over a path git has no blob for, and whether the Reviewed-mark model (ADR-0009) needs a word for it.
-- What Path resolution says about a path that is neither in the base nor in the index, and how it reads once the file is staged, committed, or deleted again.
-- How the diff text is produced: intent-to-add emulation, `git diff --no-index` per file, or a synthesised file diff, given that the Reviewed-mark digests and Path resolution key on the diff being cut exactly as revu pins it (ADR-0005's Narrowing amendment).
-- Whether an untracked file that is ignored is ever wanted (proposed: no).
-- Anchor state for lines in a file with no base blob is already handled for a pasted diff (see the linked ADR-0003 ticket); confirm the same branch covers this.
+ADR-0005's worktree amendment gets a further amendment recording that untracked files belong to every worktree Source, that ignored files do not, and why Reviewed marks, Path resolution and Anchors need no new word for them.
