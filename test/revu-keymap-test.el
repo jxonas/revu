@@ -257,22 +257,22 @@ motions, which have always moved by visual line themselves."
 
 (defun revu-keymap-test--palette ()
   "Return the commands `revu-dispatch' offers."
+  ;; The layout is read off the symbol in whichever format the transient
+  ;; that byte-compiled the palette wrote it in.  The 0.7.2 Emacs 30
+  ;; bundles writes a suffix as (LEVEL CLASS PLIST) inside [LEVEL CLASS
+  ;; ARGS CHILDREN]; 0.13 writes (CLASS . PLIST) inside [CLASS ARGS
+  ;; CHILDREN], under a versioned [2 nil GROUPS].  Both put the command
+  ;; right after `:command' in some list, so that is all the walk looks
+  ;; for.
   (let ((commands nil))
     (cl-labels ((walk (node)
                   (cond
                    ((vectorp node) (mapc #'walk (append node nil)))
-                   ((and (consp node) (symbolp (car node))
-                         (plist-get (cdr node) :command))
-                    (push (plist-get (cdr node) :command) commands))
-                   ((consp node) (mapc #'walk node)))))
-      ;; Read through transient rather than off the symbol: a prefix
-      ;; byte-compiled under one transient and loaded under another
-      ;; carries the older layout format, and transient upgrades it on
-      ;; the way out of this accessor.  That is what a reviewer's Emacs
-      ;; sees, so it is what the test sees.
-      (walk (if (fboundp 'transient--get-layout)
-                (transient--get-layout 'revu-dispatch)
-              (get 'revu-dispatch 'transient--layout))))
+                   ((not (consp node)))
+                   ((memq :command node)
+                    (push (cadr (memq :command node)) commands))
+                   (t (mapc #'walk node)))))
+      (walk (get 'revu-dispatch 'transient--layout)))
     (nreverse commands)))
 
 (ert-deftest revu-dispatch-offers-the-whole-command-set ()
