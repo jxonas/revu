@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Emacs ${{ matrix.emacs }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.emacs == 'snapshot' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs: ["29.1", "30.2", "snapshot"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jcs090218/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs }}
+
+      - uses: emacs-eldev/setup-eldev@v1
+
+      - name: Test
+        run: eldev -p -dtT test -B
+
+      - name: Lint
+        run: eldev -p -dtT lint
+
+      - name: Compile
+        run: eldev -p -dtT compile --warnings-as-errors

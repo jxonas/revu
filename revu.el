@@ -4,9 +4,9 @@
 
 ;; Author: Jonas Rodrigues
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "30.2") (magit-section "4.3.0") (transient "0.13.0"))
+;; Package-Requires: ((emacs "29.1") (magit-section "4.3.6") (transient "0.3.0"))
 ;; Keywords: tools, vc
-;; URL: https://github.com/jonasrodrigues/revu
+;; URL: https://github.com/jxonas/revu
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by

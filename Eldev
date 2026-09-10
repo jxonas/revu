@@ -21,3 +21,8 @@
 ;; whose markers a render collapses -- is the interaction itself, and no
 ;; test with evil absent can reach it.
 (eldev-add-extra-dependencies 'test '(:package evil :version "1.15"))
+
+;; `docs/images/screenshot.el' is a script a person runs to take the
+;; README picture, not a file of the package: it is neither compiled,
+;; linted nor loaded by anything.
+(setf eldev-standard-excludes `(:or ,eldev-standard-excludes "./docs/"))

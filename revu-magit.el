@@ -37,7 +37,12 @@
 ;; the recipe magit built and return the revu command to run.  The
 ;; advice does the wiring and nothing else.
 ;;
-;; The bridge needs magit 4.4 or later.
+;; The bridge needs magit 4.4 or later.  That check is also what
+;; settles transient: revu's own Package-Requires names the transient
+;; its palette needs and no more, and the 0.7.2 bundled with Emacs 30
+;; is enough for that.  magit 4.4 asks for a newer transient and pulls
+;; it in when it is installed, so a reviewer who never turns this mode
+;; on is never made to upgrade a built-in package for magit's sake.
 
 ;;; Code:
 
