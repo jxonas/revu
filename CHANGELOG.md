@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A malformed Sidecar is refused with the right line and column on
+  Emacs 29 and 31 as well as 30. Each signals `json-parse-error` with
+  differently shaped data, so the place is now counted from the offset,
+  which all three put last.
+
 ## [0.1.0] - 2026-09-10
 
 ### Added

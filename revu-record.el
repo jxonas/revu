@@ -701,11 +701,28 @@ where the trouble is."
                                        :object-type 'alist
                                        :array-type 'array)
                   (json-error
-                   (signal 'revu-invalid-sidecar
-                           (list (format "malformed JSON at line %s, column %s"
-                                         (nth 0 (cdr error))
-                                         (nth 1 (cdr error)))))))))
+                   (let ((place (revu-record--json-error-place (cdr error) text)))
+                     (signal 'revu-invalid-sidecar
+                             (list (format "malformed JSON at line %d, column %d"
+                                           (car place) (cdr place)))))))))
     (revu-review-validate review)))
+
+(defun revu-record--json-error-place (data text)
+  "Return the place in TEXT that the `json-error' DATA names, as (LINE . COLUMN).
+Only the offset is read, because it is the one thing every Emacs puts
+in the same place -- last.  Emacs 29 signals the parser\\='s message and
+source ahead of line, column and offset; Emacs 30 signals line, column
+and offset; Emacs 31 signals the line, nil for the column, and the
+offset, and deprecates the line.  Counting from the offset gives the
+same numbers on all three."
+  (let* ((offset (car (last data)))
+         (offset (if (natnump offset) (min offset (length text)) 0))
+         (before (substring text 0 offset))
+         (line-start (if (string-match "\n[^\n]*\\'" before)
+                         (1+ (match-beginning 0))
+                       0)))
+    (cons (1+ (seq-count (lambda (char) (eq char ?\n)) before))
+          (- offset line-start))))
 
 (provide 'revu-record)
 ;;; revu-record.el ends here

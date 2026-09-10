@@ -265,7 +265,14 @@ motions, which have always moved by visual line themselves."
                          (plist-get (cdr node) :command))
                     (push (plist-get (cdr node) :command) commands))
                    ((consp node) (mapc #'walk node)))))
-      (walk (get 'revu-dispatch 'transient--layout)))
+      ;; Read through transient rather than off the symbol: a prefix
+      ;; byte-compiled under one transient and loaded under another
+      ;; carries the older layout format, and transient upgrades it on
+      ;; the way out of this accessor.  That is what a reviewer's Emacs
+      ;; sees, so it is what the test sees.
+      (walk (if (fboundp 'transient--get-layout)
+                (transient--get-layout 'revu-dispatch)
+              (get 'revu-dispatch 'transient--layout))))
     (nreverse commands)))
 
 (ert-deftest revu-dispatch-offers-the-whole-command-set ()
