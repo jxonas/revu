@@ -187,7 +187,7 @@ PATHS, when given, is the Narrowing the diff is limited to."
 (defun revu-source-patch (text)
   "Return the Source of the unified diff TEXT, recorded whole.
 A pasted diff is a Source of its own and not a range: it may have been
-taken on another machine, and its `index\\=' headers may name objects this
+taken on another machine, and its `index' headers may name objects this
 repository has never held.  So the record is the diff itself.  A Source
 must be readable again from its record alone (ADR-0002), which neither a
 digest nor a pair of blob ids can promise here."
@@ -232,7 +232,7 @@ would double a separator and read as one it is not."
 (defun revu--narrowing-slug (source)
   "Return the suffix SOURCE\\='s Narrowing puts on a derived name.
 Each pathspec is slugged and hyphen-joined onto the Revisions\\=' name,
-`main..feature--src-foo--docs\\=', in the order the pathspecs were given
+`main..feature--src-foo--docs', in the order the pathspecs were given
 \(ADR-0005\\='s amendment names them in that order).  So the same Narrowing
 resumes the same Review, and the full one over the same Revisions is left
 alone."
@@ -250,12 +250,12 @@ one Review over two different diffs."
 
 (defun revu--worktree-name (source)
   "Return the name the worktree SOURCE derives, without its Narrowing.
-The worktree against HEAD is called `worktree\\=' whatever commit HEAD is
+The worktree against HEAD is called `worktree' whatever commit HEAD is
 on, so the Review of what is about to be committed does not fork every
 time a commit lands.  The worktree against any other Revision is a
 Review of its own and carries that Revision, as the reviewer named it,
-so it never resumes the one against HEAD.  The separator is `-vs-\\=',
-which is not `--\\=': that one is already the Narrowing\\='s."
+so it never resumes the one against HEAD.  The separator is `-vs-',
+which is not `--': that one is already the Narrowing\\='s."
   (let ((base (revu-source-base source)))
     ;; The base is read as it was written and not as what it resolves
     ;; to, because a name is what was written: nothing written is HEAD,
@@ -446,7 +446,7 @@ first without any of them being parsed."
 (defun revu-review-rename (review name &optional time)
   "Return REVIEW called NAME, stamped updated at TIME.
 The name is the Review\\='s file name as well as what it is called, so
-renaming one is a move on disk; that is `revu-rename\\='s to do, and this
+renaming one is a move on disk; that is for `revu-rename' to do, and this
 is only the record it writes."
   (revu--put-all review `((name . ,name)
                           (updated . ,(revu-timestamp time)))))

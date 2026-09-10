@@ -471,7 +471,7 @@ design rather than pushing every other line further right.")
   "Return WORD in the number COUNT is in: as it stands for one, an s for the rest.
 The word is returned rather than the count with it, because the two
 figures the header draws count in different shapes -- a Kind is `3
-questions\\=' and the hunks are `12/20 hunks\\=' -- and only the word is
+questions' and the hunks are `12/20 hunks' -- and only the word is
 common to them."
   (concat word (if (= count 1) "" "s")))
 

@@ -24,6 +24,20 @@ new warning is the same *kind* as the old ones, when the question is whether the
 In a Lisp string, `\='` reads as plain `=`, so Emacs shows `SOURCE=’s` to the reader. The form that
 renders `SOURCE's` is `\\='`. The `re` linter catches every miss.
 
+**And only for an apostrophe.** `\\='` is for the apostrophe inside a word -- `SOURCE\\='s` -- and never
+for closing a `` `quote' ``. `substitute-command-keys` curls a backtick into ‘ and a plain apostrophe
+into ’; a `\\='` close stays straight, so `` `git diff\\=' `` reaches `C-h f` as ‘git diff' with
+mismatched ends. No linter sees it -- `\\='` is a legitimate escape, and `re` only catches the
+single-backslash `\='`. The grep is the whole check:
+
+```
+grep -rnE "\\\\\\\\='([^A-Za-z]|$)" --include='*.el' .
+```
+
+Every hit is a fault but one: a plural possessive, `` the Revisions\\=' name ``. And the possessive of
+a quoted symbol has no spelling that renders -- `` `revu-rename\\='s `` and `` `revu-rename'\\='s ``
+both mismatch -- so reword it: *that is for `` `revu-rename' `` to do*.
+
 ## A write to the Sidecar renders before it returns
 
 ADR-0008 makes the review buffer a render of state: every change to a Review is a change to the state

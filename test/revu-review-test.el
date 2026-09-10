@@ -44,19 +44,19 @@ write guard blocks on."
     (set-file-times file (time-add (current-time) 2))))
 
 (defun revu-review-test--branch-behind-head (root)
-  "Leave ROOT with a branch `qa\\=' naming a commit that HEAD has moved past.
-The fixture\\='s worktree is committed, so the baseline `qa\\=' stays on is a
+  "Leave ROOT with a branch `qa' naming a commit that HEAD has moved past.
+The fixture\\='s worktree is committed, so the baseline `qa' stays on is a
 Revision the worktree carries something over, and a Review taken against
-it is `worktree-vs-qa\\=' rather than the `worktree\\=' one: a base naming the
+it is `worktree-vs-qa' rather than the `worktree' one: a base naming the
 commit HEAD names is HEAD."
   (revu-fixture-git-output root "branch" "qa")
   (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Land the worktree"))
 
 (defun revu-review-test--advance-branch (root)
-  "Move `qa\\=' in ROOT one commit forward, onto a commit that is still not HEAD.
+  "Move `qa' in ROOT one commit forward, onto a commit that is still not HEAD.
 This is the branch moving under a Review taken against it.  HEAD moves
-twice so that `qa\\=' lands behind it rather than on it, which would open
-the `worktree\\=' Review instead."
+twice so that `qa' lands behind it rather than on it, which would open
+the `worktree' Review instead."
   (revu-fixture-write-file root "README.md" "# Fixture\n\nEdited after the Review.\n")
   (revu-fixture-git-output root "commit" "-q" "-a" "-m" "Edit the README")
   (revu-fixture-git-output root "branch" "-f" "qa" "HEAD~"))

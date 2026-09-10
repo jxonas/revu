@@ -133,7 +133,7 @@ Signal a `user-error' when PATH belongs to no project."
 (defun revu-export-file-name (name &optional path)
   "Return the file the Export of the Review called NAME is written to.
 PATH names the project to look in, and defaults to `default-directory'.
-It lives under `revu-exports-directory-name', beside the `reviews\\='
+It lives under `revu-exports-directory-name', beside the `reviews'
 directory rather than beside the Sidecar itself, so that a Review name
 can never collide with another kind of file and `revu-open' has one
 directory to read (ADR-0005\\='s amendment).  Nothing is created."
@@ -383,8 +383,8 @@ Annotation quietly falls back to."
 
 (defun revu--check-review-name (name)
   "Signal a `user-error' unless NAME is a name a Review can be filed under.
-A Review\\='s name is its file name under `reviews/\\=', so a name carrying
-a directory separator would file it where `revu-open\\=' never looks and the
+A Review\\='s name is its file name under `reviews/', so a name carrying
+a directory separator would file it where `revu-open' never looks and the
 Review the rename meant to keep would be the one that went missing."
   (when (or (string-empty-p name)
             (member name '("." ".."))
@@ -449,7 +449,7 @@ this revu cannot read is left out: it cannot be opened either, and
   "Return non-nil when the Review in ENTRY is the scratch bucket of its Source.
 ENTRY is a cons of a name and a Review, and the Review is scratch while
 it is still called what its Source derives.  Which names those are is
-`revu-review-scratch-name-p\\='s to say: a Review whose name was derived
+for `revu-review-scratch-name-p' to say: a Review whose name was derived
 from Revisions as the reviewer typed them reads as named either way."
   (ignore-errors
     (revu-review-scratch-name-p (car entry) (revu-review-source (cdr entry)))))
@@ -521,7 +521,7 @@ resumes the Review already there rather than starting another."
   "Return the NAME an entry command called interactively is to open under.
 That is nothing at all, so that the Review opens on the name derived
 from its Source without a prompt, unless a prefix argument asks for a
-name, which is `ask\\='.  The prefix argument is read here rather than in
+name, which is `ask'.  The prefix argument is read here rather than in
 the command, so that a caller reaching an entry command from somewhere
 else -- the magit Bridge, a test, a reviewer\\='s own Lisp -- never
 inherits a prefix argument meant for the command it came from
@@ -532,7 +532,7 @@ inherits a prefix argument meant for the command it came from
   "Return the name of the Review over SOURCE that NAME asks for.
 NAME is nil for the name derived from the Source -- that Review is the
 Source\\='s scratch bucket, resumed every time it is reviewed again --
-`ask\\=' to prompt for one with the derived name offered, and otherwise
+`ask' to prompt for one with the derived name offered, and otherwise
 the name itself."
   (pcase name
     ('nil (revu-review-name-for-source source))
@@ -555,7 +555,7 @@ Each is a cons of the Revision as the reviewer wrote it -- NAMES says
 which name was written for which field of the Source -- and the commit it
 names now.
 
-A staged Source never reads as parted: `git diff --cached\\=' is against
+A staged Source never reads as parted: `git diff --cached' is against
 HEAD whatever the record holds, so a staged Review\\='s recorded base says
 where a removed line is read from and not what the reviewer is looking
 at."
@@ -636,7 +636,7 @@ the one rendered: on resume the name is the handle and the record is the
 truth, even when the name was written as a branch that has moved since.
 So READ-FILES is called only while the record and SOURCE agree, and the
 Source the record holds is read anew when they do not -- the first paint
-shows what every later `revu-reload\\=' will, and the diff the caller was
+shows what every later `revu-reload' will, and the diff the caller was
 about to take against a Revision the Review does not hold is never taken
 at all.
 
@@ -674,9 +674,9 @@ echoed as what it is."
     buffer))
 
 (defun revu--read-since-revision ()
-  "Prompt for the Revision `revu-diff-since\\=' is to review the worktree against.
+  "Prompt for the Revision `revu-diff-since' is to review the worktree against.
 Completion is over the local branches and tags, and any other Revision
-can be written instead: the prompt is a `completing-read\\=' that requires
+can be written instead: the prompt is a `completing-read' that requires
 no match, because git reads far more than revu can list."
   (completing-read "Review the worktree since Revision: "
                    (revu-diff-revision-names
@@ -715,7 +715,7 @@ everything since a tag means.
 
 NAME names the Review, and is the name derived from the Source when it
 is nothing; interactively a prefix argument asks for one.  The derived
-name is `worktree\\=' for a base naming the commit HEAD names, and carries
+name is `worktree' for a base naming the commit HEAD names, and carries
 BASE as it was written otherwise, so the Review of the worktree does not
 fork as HEAD moves and one taken against anything else never resumes it.
 The Review itself records the commit BASE resolved to, because that is
@@ -750,26 +750,26 @@ to narrow -- the magit Bridge -- ever narrows."
   "Review everything the worktree carries that Revision REVISION does not.
 This is the reviewer\\='s \"everything since the tag\": the commits that
 landed on top of REVISION and the edits that are not committed yet, read
-as one diff.  The Source is the one `revu-diff-worktree\\=' takes against a
+as one diff.  The Source is the one `revu-diff-worktree' takes against a
 base, with the base prompted for rather than passed, and the Review is
-the same Review -- `worktree-vs-<revision>\\=', named for the Revision as
+the same Review -- `worktree-vs-<revision>', named for the Revision as
 it was typed.
 
 Interactively the prompt completes over the repository\\='s local branches
-and tags and takes any other Revision as free text, so `HEAD~3\\=', an
-abbreviated id or `@{u}\\=' can be written instead.  Nothing is offered as
+and tags and takes any other Revision as free text, so `HEAD~3', an
+abbreviated id or `@{u}' can be written instead.  Nothing is offered as
 a default: a reviewer asking for everything since a point knows which
 point they mean.
 
 NAME names the Review, and is the name derived from the Source when it
 is nothing; interactively a prefix argument asks for one.  A REVISION
-naming the commit HEAD names opens the everyday `worktree\\=' Review, and
+naming the commit HEAD names opens the everyday `worktree' Review, and
 one naming nothing at all is refused.
 
 Asking again for the same REVISION resumes the Review over the commit it
 recorded when it was first opened, whatever the Revision has moved to
 since: that commit is what the Annotations already written are anchored
-in, so `g\\=' shows what has landed on top of it -- and what is still
+in, so `g' shows what has landed on top of it -- and what is still
 uncommitted -- against it."
   (interactive (list (revu--read-since-revision) (revu--name-argument)))
   ;; Resolving here is what refuses a REVISION naming nothing, in the
@@ -837,13 +837,13 @@ it was taken between cannot re-locate a removed line later."
   "Review the unified diff already in BUFFER, which defaults to this one.
 The diff is a Source of its own and is recorded whole, so a diff from a
 mail, a review page or another machine is reviewed like any other Source
-and reads back the same way afterwards.  Its `index\\=' headers are neither
+and reads back the same way afterwards.  Its `index' headers are neither
 required nor looked up: what they name is this repository\\='s business and
 a diff taken elsewhere has none of it here.
 
 NAME names the Review, and is derived from the diff text when it is
 nothing; interactively a prefix argument asks for one.  The derived name
-is `patch-\\=' and a prefix of the text\\='s digest, so pasting the same text
+is `patch-' and a prefix of the text\\='s digest, so pasting the same text
 again resumes the same Review and a different text opens a different one.
 
 A buffer with no file diff in it at all is refused, the same way an empty

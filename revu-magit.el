@@ -142,7 +142,7 @@ git takes and what `magit-diff-range' says it shows."
 
 (defun revu-magit--base (revision)
   "Return what REVISION is as the base of a Source magit handed revu.
-`head\\=' when it names the commit HEAD names -- nothing at all, HEAD
+`head' when it names the commit HEAD names -- nothing at all, HEAD
 itself, or the branch that is checked out, compared as the commits they
 name rather than as the strings they were written as, because the
 revision was magit\\='s to choose and not the reviewer\\='s to type.  Nil when

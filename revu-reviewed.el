@@ -298,7 +298,7 @@ and the hunks that were read and have changed since.  Every hunk of every
 file takes part, whatever the buffer\\='s view filters are leaving out --
 a filter is a lens on a Source and not a change of Source, so hiding what
 has been read cannot make the figure move.  A plain-file Source has no
-hunks to be counted in and is asked `revu-reviewed-state\\=' instead.
+hunks to be counted in and is asked `revu-reviewed-state' instead.
 
 The walk is over the files themselves and never over section values,
 because a value has to be looked up again in every file there is: asking

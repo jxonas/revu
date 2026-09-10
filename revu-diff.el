@@ -166,8 +166,8 @@ the handful that are being worked on."
                 "\n" t))
 
 (defun revu-diff--pathspecs (paths)
-  "Return the `git diff\\=' arguments limiting a diff to PATHS, or nil.
-The pathspecs come last, behind the `--\\=' that keeps git from reading one
+  "Return the `git diff' arguments limiting a diff to PATHS, or nil.
+The pathspecs come last, behind the `--' that keeps git from reading one
 of them as a Revision."
   (when (> (length paths) 0)
     (cons "--" (append paths nil))))

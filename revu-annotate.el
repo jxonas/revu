@@ -411,8 +411,8 @@ file."
 An active region is a range and a Source line is a line.  Off the Source,
 what point is in answers: the header at the top of the buffer is the
 Review as a whole, and a file heading is the file.  It is the section
-point is in and not one above it, so `a\\=' never widens an Annotation
-past what the reviewer is looking at; `f\\=' and `R\\=' are the explicit
+point is in and not one above it, so `a' never widens an Annotation
+past what the reviewer is looking at; `f' and `R' are the explicit
 routes to the file and the Review from anywhere.
 
 Point on nothing annotatable falls through to the line, which says so."
