@@ -15,13 +15,13 @@ jobs:
       matrix:
         emacs: ["29.1", "30.2", "snapshot"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: jcs090218/setup-emacs@master
         with:
           version: ${{ matrix.emacs }}
 
-      - uses: emacs-eldev/setup-eldev@v1
+      - uses: emacs-eldev/setup-eldev@master
 
       - name: Test
         run: eldev -p -dtT test -B
