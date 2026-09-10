@@ -2,7 +2,11 @@
 
 ;; Run from the repository root with
 ;;
-;;   eldev emacs -l docs/images/screenshot.el
+;;   emacs -L . -L test -l docs/images/screenshot.el
+;;
+;; or, with Eldev, `eldev emacs -l docs/images/screenshot.el'.  The
+;; first form uses the Emacs and the theme the reviewer already has;
+;; magit-section and transient must be installed there.
 ;;
 ;; It builds the test fixture repository, reviews its worktree against
 ;; HEAD, adds one Annotation of each Kind and marks one hunk reviewed,
